@@ -1,0 +1,56 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "paire-deep-psma-submission"
+version = "0.1.0"
+description = "Submission for the DEEP PSMA Grand Challenge"
+readme = "README.md"
+requires-python = ">=3.12, <3.13"
+dependencies = [
+    "monai>=1.5.0",
+    "pandas>=2.3.1",
+    "pydantic>=2.11.7",
+    "pydantic-settings>=2.10.1",
+    "simpleitk>=2.5.2",
+    "torch>=2.6.0",
+    "typer>=0.16.0",
+]
+
+[project.scripts]
+paire-deep-psma-submission = "paire_deep_psma_submission.cli:app"
+
+[dependency-groups]
+dev = [
+    "ipykernel>=6.29.5",
+    "matplotlib>=3.10.3",
+    "mypy>=1.16.1",
+    "pytest>=8.4.1",
+    "ruff>=0.12.2",
+    "seaborn>=0.13.2",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"src/**/__init__.py" = ["F401", "F403"]
+
+[tool.mypy]
+untyped_calls_exclude = "SimpleITK"
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+no_implicit_optional = true
+show_error_codes = true
+ignore_missing_imports = true
+explicit_package_bases = true
+check_untyped_defs = true
+implicit_reexport = true

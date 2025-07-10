@@ -7,14 +7,14 @@ name = "paire-deep-psma-submission"
 version = "0.1.0"
 description = "Submission for the DEEP PSMA Grand Challenge"
 readme = "README.md"
-requires-python = ">=3.12, <3.13"
+requires-python = ">=3.11, <3.13"
 dependencies = [
     "monai>=1.5.0",
     "pandas>=2.3.1",
     "pydantic>=2.11.7",
     "pydantic-settings>=2.10.1",
     "simpleitk>=2.5.2",
-    "torch>=2.6.0",
+    "torch==2.6.0",              # Fix to use CUDA 12.4 in docker container
     "typer>=0.16.0",
 ]
 
@@ -23,11 +23,13 @@ paire-deep-psma-submission = "paire_deep_psma_submission.cli:app"
 
 [dependency-groups]
 dev = [
+    "connected-components-3d>=3.24.0",
     "ipykernel>=6.29.5",
     "matplotlib>=3.10.3",
     "mypy>=1.16.1",
     "pytest>=8.4.1",
     "ruff>=0.12.2",
+    "scipy>=1.16.0",
     "seaborn>=0.13.2",
 ]
 

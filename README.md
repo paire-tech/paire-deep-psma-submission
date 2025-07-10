@@ -32,37 +32,109 @@ The challenge is hosted by [Grand Challenge](https://deep-psma.grand-challenge.o
 
 The following section will guide you on how to set up the project locally, build and run the Docker container, and submit your algorithm to the DEEP PSMA Grand Challenge.
 
+This repository can be used in two ways:
+
+1. **Local Development**: You can run the code locally on your machine for development purposes. This is useful for testing and debugging your code before submitting it. See the [For Developers](#for-developers) section for more details.
+
+2. **Docker Container**: You can build and run the code inside a Docker container for a more isolated and reproducible environment. This is the recommended way to ensure the code runs as expected for the DEEP PSMA Grand Challenge.
+
 ### Installation
 
-To install the project locally, you can use the following command:
+To build the docker container that will be used for the DEEP PSMA Grand Challenge, you need to have Docker installed on your machine. You can follow the [official Docker installation guide](https://docs.docker.com/get-docker/) to install Docker.
+
+1. **Build the Docker container:** Use the following command to build the Docker container:
+
+   ```bash
+   make build
+   ```
+
+2. **Download the model weights:** The model weights are not included in this repository. You need to obtain them and place them in the `weights/` directory. Contact us to obtain the model weights.
+
+### How To Use
+
+Once you have the Docker container on your machine, you can run it using the following command:
 
 ```bash
-uv sync --dev
+docker run --rm -it \
+    -v $(pwd)/weights:/opt/ml/model/ \
+    -v $(pwd)/data/input:/input/ \
+    -v $(pwd)/data/output:/output/ \
+    paire-deep-psma-submission:latest
 ```
 
-> [!NOTE]
-> You can still install the package using `pip` but we recommend using `uv` instead for managing your environment. For more details on how to use `uv`, refer to the [official documentation](https://docs.astral.sh/uv/getting-started/).
+The docker container also supports additional arguments and options to customize the inference process:
 
-### Build and Run
+| Argument            | Description                                                                             | Default Value    |
+| ------------------- | --------------------------------------------------------------------------------------- | ---------------- |
+| `--input-format`    | The format of the input data. Can be `gc` (Grand Challenge format) or `csv` (CSV file). | `gc`             |
+| `--input-dir`       | The directory containing the input data.                                                | `/input`         |
+| `--output-dir`      | The directory where the output data will be saved.                                      | `/output`        |
+| `--weights-dir`     | The directory containing the model weights.                                             | `/opt/ml/model/` |
+| `--device`          | The device to use for inference. Can be `cpu` or `cuda`.                                | `cuda`           |
+| `--mixed-precision` | Flag to enable mixed precision inference.                                               | `false`          |
 
-To build the Docker container, you can use the following command:
+**Examples:**
+
+<details>
+<summary><b>Use CUDA during inference (w/o mixed precision)</b></summary>
 
 ```bash
-make build
+docker run --rm -it \
+    -v $(pwd)/weights:/opt/ml/model/ \
+    -v $(pwd)/data/input:/input/ \
+    -v $(pwd)/data/output:/output/ \
+    paire-deep-psma-submission:latest \
+    --device cuda \
+    --mixed-precision \
 ```
 
-To run it, you can use:
+</details>
+
+<details>
+<summary><b>Run inference from a CSV file</b></summary>
+
+To facilitate the benchmarking process, the docker container supports running inference from a CSV file containing all the inputs. The CSV file should have the following format:
 
 ```bash
-make run
+docker run --rm -it \
+    -v $(pwd)/weights/2025-06-18_16-13-12:/opt/ml/model/:ro \
+    -v $(pwd)/data/input/interfo:/input/:ro \
+    -v $(pwd)/data/output:/output/2025-06-18_16-13-12/ \
+    paire-deep-psma-submission:0.1.0
 ```
 
-> [!NOTE]
-> The model weights are not included in this repository. They should be made available at `/opt/ml/model/` inside the container.
-> Contact us to obtain the model weights.
+<!-- #10 [stage-0 4/7] RUN pip list --format=columns | grep -E "(torch|cuda|nvidia)"
+#10 0.658 torch                     2.6.0+cu126
+#10 0.658 torchaudio                2.6.0+cu126
+#10 0.658 torchelastic              0.2.2
+#10 0.658 torchvision               0.21.0+cu126
+#10 0.657 nvidia-cublas-cu12        12.6.4.1
+#10 0.657 nvidia-cuda-cupti-cu12    12.6.80
+#10 0.657 nvidia-cuda-nvrtc-cu12    12.6.77
+#10 0.657 nvidia-cuda-runtime-cu12  12.6.77
+#10 0.657 nvidia-cudnn-cu12         9.5.1.17
+#10 0.657 nvidia-cufft-cu12         11.3.0.4
+#10 0.657 nvidia-curand-cu12        10.3.7.77
+#10 0.657 nvidia-cusolver-cu12      11.7.1.2
+#10 0.657 nvidia-cusparse-cu12      12.5.4.2
+#10 0.657 nvidia-cusparselt-cu12    0.6.3
+#10 0.657 nvidia-nccl-cu12          2.21.5
+#10 0.657 nvidia-nvjitlink-cu12     12.6.85
+#10 0.657 nvidia-nvtx-cu12          12.6.77 -->
 
-> [!TIP]
-> Weights provided in the `weights/` directory will be mounted to `/opt/ml/model/` inside the container by default by the `make run` command.
+</details>
+
+### Evaluation
+
+You can quickly evaluate the performance of the model from the saved predictions mask using the `scripts/evaluate.py` script. This script will compute the Dice score and other metrics for the predictions:
+
+```bash
+python scripts/evaluate.py \
+    --input-dir /data/DEEP_PSMA_CHALLENGE_DATA/CHALLENGE_DATA/ \
+    --output-dir data/output/ \
+    --input-csv /data/DEEP_PSMA_CHALLENGE_DATA/CHALLENGE_DATA/challenge_data.csv \
+    --output-csv data/output/results.csv
+```
 
 ### Submit Your Algorithm
 
@@ -80,6 +152,19 @@ This repository is linked to the DEEP PSMA Grand Challenge page. To submit a new
 <br>
 
 ## 🧑‍💻 For Developers <a name="for-developers" />
+
+### Local Installation
+
+To install the project locally, you can use the following command:
+
+```bash
+uv sync --dev
+```
+
+> [!NOTE]
+> You can still install the package using `pip` but we recommend using `uv` instead for managing your environment. For more details on how to use `uv`, refer to the [official documentation](https://docs.astral.sh/uv/getting-started/).
+
+### Usage
 
 ### Testing
 

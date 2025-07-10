@@ -5,7 +5,7 @@ SRC:=src
 TESTS:=tests
 CMD:=uv run
 
-APP_NAME:=deep-psma-submission
+APP_NAME:=paire-deep-psma-submission
 APP_VERSION:=$(shell uv version --short)
 APP_IMAGE:=$(APP_NAME):$(APP_VERSION)
 
@@ -41,7 +41,7 @@ test: ## Run unit tests
 
 .PHONY: build
 build: ## Build a production docker image
-	docker build -t $(APP_NAME):$(APP_VERSION) .
+	docker build --progress=plain -t $(APP_NAME):$(APP_VERSION) .
 
 .PHONY: run
 run: ## Run the production docker image

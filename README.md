@@ -73,57 +73,6 @@ The docker container also supports additional arguments and options to customize
 | `--device`          | The device to use for inference. Can be `cpu` or `cuda`.                                | `cuda`           |
 | `--mixed-precision` | Flag to enable mixed precision inference.                                               | `false`          |
 
-**Examples:**
-
-<details>
-<summary><b>Use CUDA during inference (w/o mixed precision)</b></summary>
-
-```bash
-docker run --rm -it \
-    -v $(pwd)/weights:/opt/ml/model/ \
-    -v $(pwd)/data/input:/input/ \
-    -v $(pwd)/data/output:/output/ \
-    paire-deep-psma-submission:latest \
-    --device cuda \
-    --mixed-precision \
-```
-
-</details>
-
-<details>
-<summary><b>Run inference from a CSV file</b></summary>
-
-To facilitate the benchmarking process, the docker container supports running inference from a CSV file containing all the inputs. The CSV file should have the following format:
-
-```bash
-docker run --rm -it \
-    -v $(pwd)/weights/2025-06-18_16-13-12:/opt/ml/model/:ro \
-    -v $(pwd)/data/input/interfo:/input/:ro \
-    -v $(pwd)/data/output:/output/2025-06-18_16-13-12/ \
-    paire-deep-psma-submission:0.1.0
-```
-
-<!-- #10 [stage-0 4/7] RUN pip list --format=columns | grep -E "(torch|cuda|nvidia)"
-#10 0.658 torch                     2.6.0+cu126
-#10 0.658 torchaudio                2.6.0+cu126
-#10 0.658 torchelastic              0.2.2
-#10 0.658 torchvision               0.21.0+cu126
-#10 0.657 nvidia-cublas-cu12        12.6.4.1
-#10 0.657 nvidia-cuda-cupti-cu12    12.6.80
-#10 0.657 nvidia-cuda-nvrtc-cu12    12.6.77
-#10 0.657 nvidia-cuda-runtime-cu12  12.6.77
-#10 0.657 nvidia-cudnn-cu12         9.5.1.17
-#10 0.657 nvidia-cufft-cu12         11.3.0.4
-#10 0.657 nvidia-curand-cu12        10.3.7.77
-#10 0.657 nvidia-cusolver-cu12      11.7.1.2
-#10 0.657 nvidia-cusparse-cu12      12.5.4.2
-#10 0.657 nvidia-cusparselt-cu12    0.6.3
-#10 0.657 nvidia-nccl-cu12          2.21.5
-#10 0.657 nvidia-nvjitlink-cu12     12.6.85
-#10 0.657 nvidia-nvtx-cu12          12.6.77 -->
-
-</details>
-
 ### Evaluation
 
 You can quickly evaluate the performance of the model from the saved predictions mask using the `scripts/evaluate.py` script. This script will compute the Dice score and other metrics for the predictions:

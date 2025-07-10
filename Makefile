@@ -1,5 +1,4 @@
 .DEFAULT_GOAL := help
--include .env
 
 SRC:=src
 TESTS:=tests
@@ -8,6 +7,15 @@ CMD:=uv run
 APP_NAME:=paire-deep-psma-submission
 APP_VERSION:=$(shell uv version --short)
 APP_IMAGE:=$(APP_NAME):$(APP_VERSION)
+
+-include .env
+INPUT_FORMAT?=gc
+INPUT_DIR?=./data/input
+OUTPUT_DIR?=./data/output
+WEIGHTS_DIR?=./weights
+LOG_LEVEL?=INFO
+LOG_FORMAT?=%(message)s
+DEVICE?=auto
 
 # Typing etc.
 
@@ -45,7 +53,15 @@ build: ## Build a production docker image
 
 .PHONY: run
 run: ## Run the production docker image
-	docker run -it --name $(APP_NAME) --gpus all -e MODEL_DEVICE=$(MODEL_DEVICE) --rm $(APP_NAME):$(APP_VERSION)
+	docker run --rm -it \
+		--user $(shell id -u):$(shell id -g) \
+		--gpus all \
+		-v $(WEIGHTS_DIR):/opt/ml/model/:ro \
+		-v $(INPUT_DIR):/input/:ro \
+		-v $(OUTPUT_DIR):/output/ \
+		$(APP_IMAGE) \
+		--input-format $(INPUT_FORMAT) \
+		--device $(DEVICE)
 
 .PHONY: export
 export: ## Export the production docker image

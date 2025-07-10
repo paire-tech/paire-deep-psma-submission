@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import Any, Dict, Generator, Union
 
@@ -7,16 +8,12 @@ import SimpleITK as sitk
 from rich.progress import track
 from typer import Option, Typer
 
+from .config import settings
 from .inference import execute_lesions_segmentation
 from .model import load_model
 from .utils import find_file_path, load_json
 
 IMAGE_EXTS = [".nii.gz", ".mha", ".tif", ".tiff"]
-INPUT_FORMAT = "gc"
-INPUT_DIR = "/input"
-OUTPUT_DIR = "/output"
-WEIGHTS_DIR = "/opt/ml/model"
-DEVICE = "cpu"
 
 
 app = Typer(
@@ -24,17 +21,19 @@ app = Typer(
     pretty_exceptions_enable=False,
 )
 
+log = logging.getLogger(__name__)
+
 
 @app.command()
 def main(
     input_format: str = Option(
-        INPUT_FORMAT,
+        settings.INPUT_FORMAT,
         "--input-format",
         "-f",
         help="Format of the input files. Supported formats are 'gc' and 'csv'.",
     ),
     input_dir: str = Option(
-        INPUT_DIR,
+        settings.INPUT_DIR,
         "--input-dir",
         "-i",
         help="Directory containing the input file(s) for the model.",
@@ -43,7 +42,7 @@ def main(
         readable=True,
     ),
     output_dir: str = Option(
-        OUTPUT_DIR,
+        settings.OUTPUT_DIR,
         "--output-dir",
         "-o",
         help="Directory to save the output file(s).",
@@ -52,20 +51,20 @@ def main(
         readable=True,
     ),
     device: str = Option(
-        DEVICE,
+        settings.DEVICE,
         "--device",
         "-d",
         help="Device to run the model on. Use 'cpu', 'cuda', or 'auto' for automatic detection.",
     ),
     use_mixed_precision: bool = Option(
-        False,
-        "--use-mixed-precision",
+        settings.MIXED_PRECISION,
+        "--mixed-precision",
         "-m",
         help="Use mixed precision for inference. This can speed up inference on compatible hardware.",
         is_flag=True,
     ),
     weights_dir: str = Option(
-        WEIGHTS_DIR,
+        settings.WEIGHTS_DIR,
         "--weights-dir",
         "-w",
         help="Directory containing the model weights.",
@@ -87,10 +86,12 @@ def main(
             suv_threshold=data["psma_pt_suv_threshold"],
             model=model,
             device=device,
+            use_mixed_precision=use_mixed_precision,
         )
 
-        pred_path = Path(data["psma_pt_ttb_path"])
+        pred_path = Path(data["psma_pred_path"])
         pred_path.parent.mkdir(parents=True, exist_ok=True)
+        log.info("Saving PSMA prediction to %s", pred_path)
         sitk.WriteImage(pred_image, pred_path)
 
         # Run inference for FDG inputs
@@ -101,10 +102,12 @@ def main(
             suv_threshold=data["fdg_pt_suv_threshold"],
             model=model,
             device=device,
+            use_mixed_precision=use_mixed_precision,
         )
 
-        pred_path = Path(data["fdg_pt_ttb_path"])
+        pred_path = Path(data["fdg_pred_path"])
         pred_path.parent.mkdir(parents=True, exist_ok=True)
+        log.info("Saving FDG prediction to %s", pred_path)
         sitk.WriteImage(pred_image, pred_path)
 
 
@@ -139,9 +142,9 @@ def iter_grand_challenge_data(
         "fdg_pt_image": sitk.ReadImage(fdg_pt_image_path),
         "fdg_pt_suv_threshold": load_json(fdg_pt_suv_threshold_path),
         "psma_to_fdg_registration": psma_to_fdg_registration,
-        # forward the path to the predictions (ttb)
-        "psma_pt_ttb_path": Path(output_dir, "images", "psma-pet-ttb", "output.mha"),
-        "fdg_pt_ttb_path": Path(output_dir, "images", "fdg-pet-ttb", "output.mha"),
+        # forward the path to the predictions output
+        "psma_pred_path": Path(output_dir, "images", "psma-pet-ttb", "output.mha"),
+        "fdg_pred_path": Path(output_dir, "images", "fdg-pet-ttb", "output.mha"),
     }
 
 
@@ -155,12 +158,12 @@ def iter_csv_data(input_dir: Union[str, Path], output_dir: Union[str, Path]) -> 
     df["psma_ct_image"] = df["psma_ct_image"].apply(lambda path: input_dir / path)
     df["psma_ct_image_organ_segmentation"] = df["psma_ct_image_organ_segmentation"].apply(lambda path: input_dir / path)
     df["psma_pt_image"] = df["psma_pt_image"].apply(lambda path: input_dir / path)
-    df["psma_pt_ttb_image"] = df["psma_pt_ttb_image"].apply(lambda path: output_dir / path)
+    df["psma_pred_image"] = df["psma_pred_image"].apply(lambda path: output_dir / path)
 
     df["fdg_ct_image"] = df["fdg_ct_image"].apply(lambda path: input_dir / path)
     df["fdg_ct_image_organ_segmentation"] = df["fdg_ct_image_organ_segmentation"].apply(lambda path: input_dir / path)
     df["fdg_pt_image"] = df["fdg_pt_image"].apply(lambda path: input_dir / path)
-    df["fdg_pt_ttb_image"] = df["fdg_pt_ttb_image"].apply(lambda path: output_dir / path)
+    df["fdg_pred_image"] = df["fdg_pred_image"].apply(lambda path: output_dir / path)
 
     for _, row in track(df.iterrows(), total=len(df), description="Processing"):
         yield {
@@ -172,8 +175,8 @@ def iter_csv_data(input_dir: Union[str, Path], output_dir: Union[str, Path]) -> 
             "fdg_ct_image_organ_segmentation": sitk.ReadImage(row["fdg_ct_image_organ_segmentation"]),
             "fdg_pt_image": sitk.ReadImage(row["fdg_pt_image"]),
             "fdg_pt_suv_threshold": row["fdg_pt_suv_threshold"],
-            "psma_to_fdg_registration": row.get("psma_to_fdg_registration"),  # Not used (yet)
-            # forward the path to the predictions (ttb)
-            "psma_pt_ttb_path": row["psma_pt_ttb_image"],
-            "fdg_pt_ttb_path": row["fdg_pt_ttb_image"],
+            "psma_to_fdg_registration": row.get("psma_to_fdg_registration"),
+            # forward the path to the predictions output
+            "psma_pred_path": row["psma_pred_image"],
+            "fdg_pred_path": row["fdg_pred_image"],
         }

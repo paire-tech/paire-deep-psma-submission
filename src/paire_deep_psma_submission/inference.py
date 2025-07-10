@@ -1,4 +1,6 @@
 import itertools
+import logging
+import time
 from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
 import monai.transforms as T
@@ -19,6 +21,8 @@ from .transforms import (
     Thresholdd,
     ToSITKd,
 )
+
+log = logging.getLogger(__name__)
 
 # special params used in dict-based transforms
 PT_KEY = "ct"
@@ -163,13 +167,18 @@ def execute_lesions_segmentation(
     use_mixed_precision: bool = False,
 ) -> sitk.Image:
     # Preprocess the inputs
+    log.debug("Starting preprocessing")
+    tic = time.monotonic()
     input, pt_mask = preprocess(pt_image, ct_image, organs_segmentation_image, suv_threshold, return_pt_mask=True)
     pad_widths = [(0, 0)] + divisible_pad_widths(input.shape[1:], k=32)
     input = pad_tensor(input, pad_widths, mode="constant", value=0.0)
+    log.debug("Preprocessing completed in %.2f seconds", time.monotonic() - tic)
 
     input = input.to(device)
     model = model.to(device)
 
+    tic = time.monotonic()
+    log.info("Starting inference on '%s' device with input %s", device, tuple(input.shape))
     model.eval()
     with torch.amp.autocast(device_type=device, enabled=use_mixed_precision, cache_enabled=False):
         logits = sliding_window_inference(
@@ -182,8 +191,11 @@ def execute_lesions_segmentation(
         )
 
     pred_tensor = torch.argmax(logits.float(), dim=1, keepdim=True).squeeze(0)  # type: ignore[union-attr]
+    log.debug("Inference completed in %.2f seconds", time.monotonic() - tic)
 
     # Postprocess the prediction
+    tic = time.monotonic()
+    log.debug("Starting postprocessing")
     pred_tensor = unpad_tensor(pred_tensor, pad_widths)
     pred_image = postprocess(
         pred_ttb=(pred_tensor == 2).detach().cpu(),  # TTB label
@@ -195,6 +207,7 @@ def execute_lesions_segmentation(
         direction=pt_image.GetDirection(),
         metadata={k: pt_image.GetMetaData(k) for k in pt_image.GetMetaDataKeys()},
     )
+    log.debug("Postprocessing completed in %.2f seconds", time.monotonic() - tic)
 
     # Clear CUDA memory if using GPU
     torch.cuda.empty_cache()

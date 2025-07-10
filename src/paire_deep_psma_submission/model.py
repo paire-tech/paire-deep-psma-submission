@@ -1,9 +1,12 @@
+import logging
 from pathlib import Path
 from typing import Union
 
 import torch
 import torch.nn as nn
 from monai.networks.nets import DynUNet
+
+log = logging.getLogger(__name__)
 
 
 def load_model(weights_dir: Union[str, Path], device: str = "cpu") -> nn.Module:
@@ -27,9 +30,11 @@ def load_model(weights_dir: Union[str, Path], device: str = "cpu") -> nn.Module:
         raise ValueError(f"Expected exactly one weights file in {weights_dir}, found {len(weights_paths)}.")
 
     weights_path = weights_paths[0]
+    log.debug("Loading model weights from %s", weights_path)
     state_dict = torch.load(weights_path, map_location=device)
     model.load_state_dict(state_dict, strict=True)
 
     model.to(device)
-    model.eval()
+    log.info("Successfully loaded model from %s on '%s' device", weights_path, device)
+
     return model

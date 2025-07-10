@@ -6,6 +6,7 @@ import SimpleITK as sitk
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from monai.inferers import sliding_window_inference
 from torch import Tensor
 
 from .transforms import (
@@ -161,8 +162,6 @@ def execute_lesions_segmentation(
     device: str = "cpu",
     use_mixed_precision: bool = False,
 ) -> sitk.Image:
-    model.eval()
-
     # Preprocess the inputs
     input, pt_mask = preprocess(pt_image, ct_image, organs_segmentation_image, suv_threshold, return_pt_mask=True)
     pad_widths = [(0, 0)] + divisible_pad_widths(input.shape[1:], k=32)
@@ -170,13 +169,19 @@ def execute_lesions_segmentation(
 
     input = input.to(device)
     model = model.to(device)
-    if use_mixed_precision:
-        model = model.half()
-        input = input.half()
 
-    logits = model(input.unsqueeze(0))
-    logits = logits.float()  # Ensure logits are in float format
-    pred_tensor = torch.argmax(logits, dim=1, keepdim=True).squeeze(0)
+    model.eval()
+    with torch.amp.autocast(device_type=device, enabled=use_mixed_precision, cache_enabled=False):
+        logits = sliding_window_inference(
+            inputs=input.unsqueeze(0),
+            predictor=model,
+            roi_size=[128, 96, 224],
+            sw_batch_size=4,
+            overlap=0.25,
+            mode="constant",
+        )
+
+    pred_tensor = torch.argmax(logits.float(), dim=1, keepdim=True).squeeze(0)  # type: ignore[union-attr]
 
     # Postprocess the prediction
     pred_tensor = unpad_tensor(pred_tensor, pad_widths)

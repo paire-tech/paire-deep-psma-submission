@@ -94,18 +94,18 @@ def main(
         sitk.WriteImage(pred_image, pred_path)
 
         # Run inference for FDG inputs
-        # pred_image = execute_lesions_segmentation(
-        #     pt_image=data["fdg_pt_image"],
-        #     ct_image=data["fdg_ct_image"],
-        #     organs_segmentation_image=data["fdg_ct_image_organ_segmentation"],
-        #     suv_threshold=data["fdg_pt_suv_threshold"],
-        #     model=model,
-        #     device=device,
-        # )
+        pred_image = execute_lesions_segmentation(
+            pt_image=data["fdg_pt_image"],
+            ct_image=data["fdg_ct_image"],
+            organs_segmentation_image=data["fdg_ct_image_organ_segmentation"],
+            suv_threshold=data["fdg_pt_suv_threshold"],
+            model=model,
+            device=device,
+        )
 
-        # pred_path = Path(data["fdg_pt_ttb_path"])
-        # pred_path.parent.mkdir(parents=True, exist_ok=True)
-        # sitk.WriteImage(pred_image, pred_path)
+        pred_path = Path(data["fdg_pt_ttb_path"])
+        pred_path.parent.mkdir(parents=True, exist_ok=True)
+        sitk.WriteImage(pred_image, pred_path)
 
 
 def iter_grand_challenge_data(

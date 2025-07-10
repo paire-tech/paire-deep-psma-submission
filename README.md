@@ -55,23 +55,19 @@ To build the docker container that will be used for the DEEP PSMA Grand Challeng
 Once you have the Docker container on your machine, you can run it using the following command:
 
 ```bash
-docker run --rm -it \
-    -v $(pwd)/weights:/opt/ml/model/ \
-    -v $(pwd)/data/input:/input/ \
-    -v $(pwd)/data/output:/output/ \
-    paire-deep-psma-submission:latest
+make run
 ```
 
-The docker container also supports additional arguments and options to customize the inference process:
+The docker container also supports additional arguments and options to customize the inference process. You can specify them through environment variables (create a `.env` file in the root directory):
 
-| Argument            | Description                                                                             | Default Value    |
-| ------------------- | --------------------------------------------------------------------------------------- | ---------------- |
-| `--input-format`    | The format of the input data. Can be `gc` (Grand Challenge format) or `csv` (CSV file). | `gc`             |
-| `--input-dir`       | The directory containing the input data.                                                | `/input`         |
-| `--output-dir`      | The directory where the output data will be saved.                                      | `/output`        |
-| `--weights-dir`     | The directory containing the model weights.                                             | `/opt/ml/model/` |
-| `--device`          | The device to use for inference. Can be `cpu` or `cuda`.                                | `cuda`           |
-| `--mixed-precision` | Flag to enable mixed precision inference.                                               | `false`          |
+| Argument          | Description                                                                             | Default Value    |
+| ----------------- | --------------------------------------------------------------------------------------- | ---------------- |
+| `INPUT_FORMAT`    | The format of the input data. Can be `gc` (Grand Challenge format) or `csv` (CSV file). | `gc`             |
+| `INPUT_DIR`       | The directory containing the input data.                                                | `/input`         |
+| `OUTPUT_DIR`      | The directory where the output data will be saved.                                      | `/output`        |
+| `WEIGHTS_DIR`     | The directory containing the model weights.                                             | `/opt/ml/model/` |
+| `DEVICE`          | The device to use for inference. Can be `auto`, `cpu` or `cuda`.                        | `cuda`           |
+| `MIXED_PRECISION` | Flag to enable mixed precision inference.                                               | `false`          |
 
 ### Evaluation
 

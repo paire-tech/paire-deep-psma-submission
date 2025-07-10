@@ -209,5 +209,4 @@ __marimo__/
 # Project specific
 data/*
 weights/*
-logs/*
 !.gitkeep

@@ -71,7 +71,7 @@ The docker container also supports additional arguments and options to customize
 | `DEVICE`          | The device to use for inference. Can be `auto`, `cpu` or `cuda`.                        | `cuda`           |
 | `MIXED_PRECISION` | Flag to enable mixed precision inference.                                               | `false`          |
 
-> [!NOTE] About the input format
+> [!NOTE]
 > **Grand Challenge format**: This is the default format used by the DEEP PSMA Grand Challenge. <br>
 > **CSV format**: This format expects a CSV file with the following columns: `{psma|fdg}_pt_path`, `{psma|fdg}_ct_path`, `{psma|fdg}_organ_segmentation_path`, and `{psma|fdg}_suv_threshold`. The paths should point to the respective files relative to the input directory.
 

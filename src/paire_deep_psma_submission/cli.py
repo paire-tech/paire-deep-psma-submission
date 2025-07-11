@@ -79,10 +79,11 @@ def main(
     iter_data = iter_grand_challenge_data if input_format == "gc" else iter_csv_data
     for data in iter_data(input_dir, output_dir):
         # Run inference for PSMA inputs
+        log.info("[PSMA] Running lesions segmentation inference")
         pred_image = execute_lesions_segmentation(
             pt_image=data["psma_pt_image"],
             ct_image=data["psma_ct_image"],
-            organs_segmentation_image=data["psma_ct_image_organ_segmentation"],
+            organs_segmentation_image=data["psma_organ_segmentation_image"],
             suv_threshold=data["psma_pt_suv_threshold"],
             model=model,
             device=device,
@@ -91,14 +92,15 @@ def main(
 
         pred_path = Path(data["psma_pred_path"])
         pred_path.parent.mkdir(parents=True, exist_ok=True)
-        log.info("Saving PSMA prediction to %s", pred_path)
+        log.info("Saving prediction to '%s'", pred_path)
         sitk.WriteImage(pred_image, pred_path)
 
         # Run inference for FDG inputs
+        log.info("[FDG ] Running lesions segmentation inference")
         pred_image = execute_lesions_segmentation(
             pt_image=data["fdg_pt_image"],
             ct_image=data["fdg_ct_image"],
-            organs_segmentation_image=data["fdg_ct_image_organ_segmentation"],
+            organs_segmentation_image=data["fdg_organ_segmentation_image"],
             suv_threshold=data["fdg_pt_suv_threshold"],
             model=model,
             device=device,
@@ -107,7 +109,7 @@ def main(
 
         pred_path = Path(data["fdg_pred_path"])
         pred_path.parent.mkdir(parents=True, exist_ok=True)
-        log.info("Saving FDG prediction to %s", pred_path)
+        log.info("Saving prediction to '%s'", pred_path)
         sitk.WriteImage(pred_image, pred_path)
 
 
@@ -134,11 +136,11 @@ def iter_grand_challenge_data(
 
     yield {
         "psma_ct_image": sitk.ReadImage(psma_ct_image_path),
-        "psma_ct_image_organ_segmentation": sitk.ReadImage(psma_ct_image_organ_segmentation_path),
+        "psma_organ_segmentation_image": sitk.ReadImage(psma_ct_image_organ_segmentation_path),
         "psma_pt_image": sitk.ReadImage(psma_pt_image_path),
         "psma_pt_suv_threshold": load_json(psma_pt_suv_threshold_path),
         "fdg_ct_image": sitk.ReadImage(fdg_ct_image_path),
-        "fdg_ct_image_organ_segmentation": sitk.ReadImage(fdg_ct_image_organ_segmentation_path),
+        "fdg_organ_segmentation_image": sitk.ReadImage(fdg_ct_image_organ_segmentation_path),
         "fdg_pt_image": sitk.ReadImage(fdg_pt_image_path),
         "fdg_pt_suv_threshold": load_json(fdg_pt_suv_threshold_path),
         "psma_to_fdg_registration": psma_to_fdg_registration,
@@ -154,29 +156,30 @@ def iter_csv_data(input_dir: Union[str, Path], output_dir: Union[str, Path]) -> 
 
     csv_path = find_file_path(input_dir, ext=".csv")
     df = pd.read_csv(csv_path)
+    log.info("Loaded %s entries from '%s'", len(df), csv_path)
 
-    df["psma_ct_image"] = df["psma_ct_image"].apply(lambda path: input_dir / path)
-    df["psma_ct_image_organ_segmentation"] = df["psma_ct_image_organ_segmentation"].apply(lambda path: input_dir / path)
-    df["psma_pt_image"] = df["psma_pt_image"].apply(lambda path: input_dir / path)
-    df["psma_pred_image"] = df["psma_pred_image"].apply(lambda path: output_dir / path)
+    df["psma_ct_path"] = df["psma_ct_path"].apply(lambda path: input_dir / path)
+    df["psma_organ_segmentation_path"] = df["psma_organ_segmentation_path"].apply(lambda path: input_dir / path)
+    df["psma_pt_path"] = df["psma_pt_path"].apply(lambda path: input_dir / path)
+    df["psma_pred_path"] = df["psma_pred_path"].apply(lambda path: output_dir / path)
 
-    df["fdg_ct_image"] = df["fdg_ct_image"].apply(lambda path: input_dir / path)
-    df["fdg_ct_image_organ_segmentation"] = df["fdg_ct_image_organ_segmentation"].apply(lambda path: input_dir / path)
-    df["fdg_pt_image"] = df["fdg_pt_image"].apply(lambda path: input_dir / path)
-    df["fdg_pred_image"] = df["fdg_pred_image"].apply(lambda path: output_dir / path)
+    df["fdg_ct_path"] = df["fdg_ct_path"].apply(lambda path: input_dir / path)
+    df["fdg_organ_segmentation_path"] = df["fdg_organ_segmentation_path"].apply(lambda path: input_dir / path)
+    df["fdg_pt_path"] = df["fdg_pt_path"].apply(lambda path: input_dir / path)
+    df["fdg_pred_path"] = df["fdg_pred_path"].apply(lambda path: output_dir / path)
 
     for _, row in track(df.iterrows(), total=len(df), description="Processing"):
         yield {
-            "psma_ct_image": sitk.ReadImage(row["psma_ct_image"]),
-            "psma_ct_image_organ_segmentation": sitk.ReadImage(row["psma_ct_image_organ_segmentation"]),
-            "psma_pt_image": sitk.ReadImage(row["psma_pt_image"]),
+            "psma_ct_image": sitk.ReadImage(row["psma_ct_path"]),
+            "psma_organ_segmentation_image": sitk.ReadImage(row["psma_organ_segmentation_path"]),
+            "psma_pt_image": sitk.ReadImage(row["psma_pt_path"]),
             "psma_pt_suv_threshold": row["psma_pt_suv_threshold"],
-            "fdg_ct_image": sitk.ReadImage(row["fdg_ct_image"]),
-            "fdg_ct_image_organ_segmentation": sitk.ReadImage(row["fdg_ct_image_organ_segmentation"]),
-            "fdg_pt_image": sitk.ReadImage(row["fdg_pt_image"]),
+            "fdg_ct_image": sitk.ReadImage(row["fdg_ct_path"]),
+            "fdg_organ_segmentation_image": sitk.ReadImage(row["fdg_organ_segmentation_path"]),
+            "fdg_pt_image": sitk.ReadImage(row["fdg_pt_path"]),
             "fdg_pt_suv_threshold": row["fdg_pt_suv_threshold"],
             "psma_to_fdg_registration": row.get("psma_to_fdg_registration"),
             # forward the path to the predictions output
-            "psma_pred_path": row["psma_pred_image"],
-            "fdg_pred_path": row["fdg_pred_image"],
+            "psma_pred_path": row["psma_pred_path"],
+            "fdg_pred_path": row["fdg_pred_path"],
         }

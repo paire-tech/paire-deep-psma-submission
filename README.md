@@ -62,7 +62,7 @@ make run
 
 The docker container also supports additional arguments and options to customize the inference process. You can specify them through environment variables (create a `.env` file in the root directory):
 
-| Argument          | Description                                                                             | Default Value    |
+| Argument          | Description                                                                             | Default          |
 | ----------------- | --------------------------------------------------------------------------------------- | ---------------- |
 | `INPUT_FORMAT`    | The format of the input data. Can be `gc` (Grand Challenge format) or `csv` (CSV file). | `gc`             |
 | `INPUT_DIR`       | The directory containing the input data.                                                | `/input`         |
@@ -70,6 +70,10 @@ The docker container also supports additional arguments and options to customize
 | `WEIGHTS_DIR`     | The directory containing the model weights.                                             | `/opt/ml/model/` |
 | `DEVICE`          | The device to use for inference. Can be `auto`, `cpu` or `cuda`.                        | `cuda`           |
 | `MIXED_PRECISION` | Flag to enable mixed precision inference.                                               | `false`          |
+
+> [!NOTE] About the input format
+> **Grand Challenge format**: This is the default format used by the DEEP PSMA Grand Challenge. <br>
+> **CSV format**: This format expects a CSV file with the following columns: `{psma|fdg}_pt_path`, `{psma|fdg}_ct_path`, `{psma|fdg}_organ_segmentation_path`, and `{psma|fdg}_suv_threshold`. The paths should point to the respective files relative to the input directory.
 
 ### Evaluation
 
@@ -128,7 +132,7 @@ paire-deep-psma-submission --help
 
 The available options are:
 
-| Option              | Description                                                                             | Default Value    |
+| Option              | Description                                                                             | Default          |
 | ------------------- | --------------------------------------------------------------------------------------- | ---------------- |
 | `--input-format`    | The format of the input data. Can be `gc` (Grand Challenge format) or `csv` (CSV file). | `gc`             |
 | `--input-dir`       | The directory containing the input data.                                                | `/input`         |

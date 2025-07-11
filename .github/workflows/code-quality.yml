@@ -1,0 +1,33 @@
+name: Code Quality
+
+on: push
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install the project
+        run: uv sync --locked --all-extras --dev
+
+      - name: Check types
+        if: ${{ always() }}
+        run: uv run mypy src tests
+
+      - name: Check linting
+        if: ${{ always() }}
+        run: uv run ruff check src tests
+
+      - name: Check imports
+        if: ${{ always() }}
+        run: uv run ruff check src tests --select I
+
+      - name: Check formatting
+        if: ${{ always() }}
+        run: uv run ruff format src tests --check

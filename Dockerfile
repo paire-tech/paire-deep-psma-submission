@@ -29,7 +29,7 @@ RUN if [ "$BUILD_MODE" = "dev" ]; then \
 # to avoid re-installing CUDA dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install source code
+# Add source code
 COPY src/ main.py ./
 
 # Launch the app

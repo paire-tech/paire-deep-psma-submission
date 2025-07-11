@@ -11,16 +11,7 @@ import torch.nn.functional as F
 from monai.inferers import sliding_window_inference
 from torch import Tensor
 
-from .transforms import (
-    Divided,
-    Equald,
-    LogicalAndd,
-    SITKChangeLabeld,
-    SITKResampleToMatchd,
-    SITKToTensord,
-    Thresholdd,
-    ToSITKd,
-)
+from .transforms import Divided, LogicalAndd, SITKChangeLabeld, SITKResampleToMatchd, SITKToTensord, Thresholdd, ToSITKd
 
 log = logging.getLogger(__name__)
 
@@ -29,10 +20,8 @@ PT_KEY = "ct"
 CT_KEY = "pt"
 ORGANS_KEY = "organs_segmentation"
 PT_MASK_KEY = "pt_mask"
-INPUT_KEY = "input"
+IMAGE_KEY = "image"
 PRED_TTB_KEY = "pred_ttb"
-PRED_NORM_KEY = "pred_norm"
-BACKGROUND_KEY = "bg"
 
 ORGANS_MAPPING = {
     0: 0,  #    unspecified                   -> unspecified
@@ -169,20 +158,20 @@ def execute_lesions_segmentation(
     # Preprocess the inputs
     log.debug("Starting preprocessing")
     tic = time.monotonic()
-    input, pt_mask = preprocess(pt_image, ct_image, organs_segmentation_image, suv_threshold, return_pt_mask=True)
-    pad_widths = [(0, 0)] + divisible_pad_widths(input.shape[1:], k=32)
-    input = pad_tensor(input, pad_widths, mode="constant", value=0.0)
+    image, pt_mask = preprocess(pt_image, ct_image, organs_segmentation_image, suv_threshold, return_pt_mask=True)
+    pad_widths = [(0, 0)] + divisible_pad_widths(image.shape[1:], k=32)
+    image = pad_tensor(image, pad_widths, mode="constant", value=0.0)
     log.debug("Preprocessing completed in %.2f seconds", time.monotonic() - tic)
 
-    input = input.to(device)
+    image = image.to(device)
     model = model.to(device)
 
     tic = time.monotonic()
-    log.info("Starting inference on '%s' device with input %s", device, tuple(input.shape))
+    log.info("Starting inference on '%s' device with input %s", device, tuple(image.shape))
     model.eval()
     with torch.amp.autocast(device_type=device, enabled=use_mixed_precision, cache_enabled=False):
         logits = sliding_window_inference(
-            inputs=input.unsqueeze(0),
+            inputs=image.unsqueeze(0),
             predictor=model,
             roi_size=[128, 96, 224],
             sw_batch_size=4,
@@ -198,8 +187,7 @@ def execute_lesions_segmentation(
     log.debug("Starting postprocessing")
     pred_tensor = unpad_tensor(pred_tensor, pad_widths)
     pred_image = postprocess(
-        pred_ttb=(pred_tensor == 2).detach().cpu(),  # TTB label
-        pred_norm=(pred_tensor == 1).detach().cpu(),  # Normal label
+        pred_ttb=(pred_tensor == 1).detach().cpu(),  # TTB label
         pt_mask=pt_mask.detach().cpu(),
         # Pass the original PT profile
         spacing=pt_image.GetSpacing(),
@@ -224,18 +212,22 @@ def preprocess(
 ) -> Union[Tensor, Tuple[Tensor, Tensor]]:
     transform = T.Compose(
         [
-            SITKResampleToMatchd(keys=[CT_KEY, ORGANS_KEY], key_dst=PT_KEY, mode=["nearest", "nearest"]),
+            SITKResampleToMatchd(
+                keys=[CT_KEY, ORGANS_KEY],
+                key_dst=PT_KEY,
+                default_value=[-1000, 0],
+                mode=["nearest", "nearest"],
+            ),
             SITKChangeLabeld(keys=[ORGANS_KEY], mapping=ORGANS_MAPPING),
             SITKToTensord(keys=[PT_KEY, CT_KEY, ORGANS_KEY]),
             T.EnsureChannelFirstd(keys=[PT_KEY, CT_KEY, ORGANS_KEY], channel_dim="no_channel"),
-            # T.ResampleToMatchd(keys=[CT_KEY, ORGANS_KEY], key_dst=PT_KEY, mode=["nearest", "nearest"]),
             T.ScaleIntensityRanged(keys=CT_KEY, a_min=-1000, a_max=600, b_min=0.0, b_max=1.0, clip=True),
             Divided(keys=[PT_KEY], value=suv_threshold),
-            Thresholdd(keys=[PT_KEY], threshold=1.0, above=True, dst_keys=PT_MASK_KEY),
+            Thresholdd(keys=[PT_KEY], dst_keys=[PT_MASK_KEY], threshold=1.0, above=True),
             T.ToTensord(keys=[PT_KEY, CT_KEY], dtype=torch.float32),
             T.ToTensord(keys=[ORGANS_KEY], dtype=torch.int32),
             T.AsDiscreted(keys=[ORGANS_KEY], to_onehot=9),
-            T.ConcatItemsd(keys=[PT_KEY, CT_KEY, PT_MASK_KEY, ORGANS_KEY], name=INPUT_KEY),
+            T.ConcatItemsd(keys=[PT_KEY, CT_KEY, PT_MASK_KEY, ORGANS_KEY], name=IMAGE_KEY),
         ]
     )
 
@@ -243,13 +235,12 @@ def preprocess(
     data = transform(data)
 
     if return_pt_mask:
-        return data[INPUT_KEY], data[PT_MASK_KEY]
-    return data[INPUT_KEY]
+        return data[IMAGE_KEY], data[PT_MASK_KEY]
+    return data[IMAGE_KEY]
 
 
 def postprocess(
     pred_ttb: Tensor,
-    pred_norm: Tensor,
     pt_mask: Tensor,
     *,
     spacing: Optional[Sequence[float]] = None,
@@ -260,18 +251,16 @@ def postprocess(
     transform = T.Compose(
         [
             T.ToTensord(keys=[PRED_TTB_KEY], dtype=torch.float32),
-            T.ImageFilterd(keys=[PRED_TTB_KEY], kernel="elliptical", kernel_size=5),
+            T.ImageFilterd(keys=[PRED_TTB_KEY], kernel="elliptical", kernel_size=3),
             T.AsDiscreted(keys=[PRED_TTB_KEY], threshold=0.5, dtype=torch.int16),
-            T.ToTensord(keys=[PRED_TTB_KEY, PRED_NORM_KEY, PT_MASK_KEY], dtype=torch.int16),
+            T.ToTensord(keys=[PRED_TTB_KEY, PT_MASK_KEY], dtype=torch.int16),
             LogicalAndd(keys=[PRED_TTB_KEY], other_keys=[PT_MASK_KEY]),
-            Equald(keys=[PRED_NORM_KEY], value=0, dst_keys=[BACKGROUND_KEY]),
-            LogicalAndd(keys=[PRED_TTB_KEY], other_keys=[BACKGROUND_KEY]),
             T.SqueezeDimd(keys=[PRED_TTB_KEY], dim=0),  # Remove the channel dimension
             ToSITKd(keys=[PRED_TTB_KEY], spacing=spacing, origin=origin, direction=direction, metadata=metadata),
         ]
     )
 
-    data = {PRED_TTB_KEY: pred_ttb, PRED_NORM_KEY: pred_norm, PT_MASK_KEY: pt_mask}
+    data = {PRED_TTB_KEY: pred_ttb, PT_MASK_KEY: pt_mask}
     data = transform(data)
     return data[PRED_TTB_KEY]
 

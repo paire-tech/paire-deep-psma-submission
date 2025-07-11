@@ -1,4 +1,6 @@
-<h3 align="center">PaIRe - DEEP PSMA Challenge Submission</h3>
+<h3 align="center">PaIRe DEEP-PSMA Submission</h3>
+
+<div align="center">
 
 [![python](https://img.shields.io/badge/python-3.11_%7C_3.12-red.svg?color=090422&labelColor=1E14B0&logo=python&logoColor=white)](https://www.python.org/)
 [![docker](https://img.shields.io/badge/docker-build-red?color=090422&labelColor=1E14B0&logo=docker&logoColor=white)](https://www.docker.com/)
@@ -11,7 +13,7 @@
 
 <p align="center">
   <i>
-    Code and submission for the DeepPSMA Grand Challenge 🚀⚡🔥
+    Inference code and submission for the DEEP-PSMA Grand Challenge 🚀⚡🔥
   </i>
 </p>
 
@@ -48,7 +50,7 @@ To build the docker container that will be used for the DEEP PSMA Grand Challeng
    make build
    ```
 
-2. **Download the model weights:** The model weights are not included in this repository. You need to obtain them and place them in the `weights/` directory. Contact us to obtain the model weights.
+2. **Download the model weights:** The model weights are not included in this repository. You need to obtain them and place them in the `weights/` directory. You can find the weights on S3.
 
 ### How To Use
 
@@ -83,16 +85,23 @@ python scripts/evaluate.py \
 
 ### Submit Your Algorithm
 
-This repository is linked to the DEEP PSMA Grand Challenge page. To submit a new algorithm, you should:
+To submit a new algorithm to the DEEP-PSMA Grand Challenge, follow these steps:
 
-1. Add your changes / features to this repository through a pull request
-2. Verify the tests are passing and the build is successful
-3. Once the pull request is merged, create a new tag with the version number (e.g., `v0.1.0`)
-4. The algorithm will be automatically updated on the Grand Challenge platform
-5. Add the model weights in the DEEP PSMA Grand Challenge submission page.
+1. Add your changes / features to this repository through a pull request. Follow the [For Developers](#for-developers) section for more details on how to contribute.
+2. Once the pull request is merged, create a new tag with the version number (e.g., `vx.y.z`) to track our submissions from the code.
+3. Build the Docker container using
 
-> [!NOTE]
-> For more information refer to the documentation on [how to link a github repository to the algorithm](https://grand-challenge.org/documentation/linking-a-github-repository-to-your-algorithm/).
+    ```bash
+    make build
+    ```
+
+4. Export the Docker image to a tar file:
+
+    ```bash
+    make export
+    ```
+
+5. Add the container and model weights in the DEEP PSMA Grand Challenge submission page. For more details, refer to the [test and deploy your container](https://grand-challenge.org/documentation/test-and-deploy-your-container/) documentation.
 
 <br>
 
@@ -111,9 +120,52 @@ uv sync --dev
 
 ### Usage
 
+This package comes with a CLI used as the main entrypoint for the inference (and from the Docker container). You can run the CLI using the following command:
+
+```bash
+paire-deep-psma-submission --help
+```
+
+The available options are:
+
+| Option              | Description                                                                             | Default Value    |
+| ------------------- | --------------------------------------------------------------------------------------- | ---------------- |
+| `--input-format`    | The format of the input data. Can be `gc` (Grand Challenge format) or `csv` (CSV file). | `gc`             |
+| `--input-dir`       | The directory containing the input data.                                                | `/input`         |
+| `--output-dir`      | The directory where the output data will be saved.                                      | `/output`        |
+| `--weights-dir`     | The directory containing the model weights.                                             | `/opt/ml/model/` |
+| `--device`          | The device to use for inference. Can be `auto`, `cpu` or `cuda`.                        | `cuda`           |
+| `--mixed-precision` | Flag to enable mixed precision inference.                                               | `false`          |
+
+> [!NOTE]
+> These options can also be set through environment variables.
+
 ### Testing
 
+Before submitting your changes, make sure to run the tests to ensure everything is working as expected. You can run the tests using the following command:
+
+```bash
+make test
+```
+
 ### Make Commands
+
+We used `make` to define common commands for building, testing, and running the project. Here are the available commands:
+
+| Command         | Description                                       |
+| --------------- | ------------------------------------------------- |
+| `make format`   | Format source code using Ruff and Black.          |
+| `make lint`     | Lint source code using Ruff.                      |
+| `make lint-fix` | Lint and fix source code using Ruff.              |
+| `make isort`    | Sort imports using Ruff.                          |
+| `make type`     | Check types in source code using Mypy.            |
+| `make test`     | Run unit tests using Pytest.                      |
+| `make build`    | Build a production Docker image.                  |
+| `make run`      | Run the production Docker image.                  |
+| `make export`   | Export the production Docker image to a tar file. |
+| `make all`      | Run all formatting commands.                      |
+| `make clean`    | Clear local caches and build artifacts.           |
+| `make help`     | Show available commands.                          |
 
 <br>
 

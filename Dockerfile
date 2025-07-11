@@ -1,8 +1,11 @@
-FROM pytorch/pytorch:2.6.0-cuda12.4-cudnn9-runtime
+ARG PYTORCH="2.6.0"
+ARG CUDA="12.4"
+ARG CUDNN="9"
+ARG BUILD_MODE=prod
+
+FROM pytorch/pytorch:${PYTORCH}-cuda${CUDA}-cudnn${CUDNN}-runtime
 # Copy uv binary from official image
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
-# Build argument for environment
-ARG BUILD_MODE=prod
 
 # Remove unnecessary packages and clean cache
 RUN apt-get update && apt-get install -y --no-install-recommends \

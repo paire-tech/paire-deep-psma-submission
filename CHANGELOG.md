@@ -9,4 +9,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### What's Changed
 
+- Updated Dockerfile to create a non-root user and set permissions.
 - Added initial inference code for Task007-PBD.

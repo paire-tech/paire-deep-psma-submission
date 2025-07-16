@@ -148,6 +148,25 @@ class SITKChangeLabeld(T.MapTransform):
         return data
 
 
+class SITKCastd(T.MapTransform):
+    def __init__(
+        self,
+        keys: KeysCollection,
+        dtype: Union[int, Sequence[int]],
+        dst_keys: Optional[KeysCollection] = None,
+        allow_missing_keys: bool = False,
+    ) -> None:
+        super().__init__(keys, allow_missing_keys)
+        self.dtype = ensure_tuple_rep(dtype, dim=len(self.keys))
+        self.dst_keys = ensure_tuple_rep(dst_keys or self.keys, dim=len(self.keys))
+
+    def __call__(self, data: Dict) -> Dict:
+        data = dict(data)
+        for key, dst_key, dtype in self.key_iterator(data, self.dst_keys, self.dtype):
+            data[dst_key] = sitk.Cast(data[key], dtype)
+        return data
+
+
 class ToSITKd(T.MapTransform):
     def __init__(
         self,

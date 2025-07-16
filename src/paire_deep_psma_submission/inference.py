@@ -11,7 +11,16 @@ import torch.nn.functional as F
 from monai.inferers import sliding_window_inference
 from torch import Tensor
 
-from .transforms import Divided, LogicalAndd, SITKChangeLabeld, SITKResampleToMatchd, SITKToTensord, Thresholdd, ToSITKd
+from .transforms import (
+    Divided,
+    LogicalAndd,
+    SITKCastd,
+    SITKChangeLabeld,
+    SITKResampleToMatchd,
+    SITKToTensord,
+    Thresholdd,
+    ToSITKd,
+)
 
 log = logging.getLogger(__name__)
 
@@ -257,6 +266,7 @@ def postprocess(
             LogicalAndd(keys=[PRED_TTB_KEY], other_keys=[PT_MASK_KEY]),
             T.SqueezeDimd(keys=[PRED_TTB_KEY], dim=0),  # Remove the channel dimension
             ToSITKd(keys=[PRED_TTB_KEY], spacing=spacing, origin=origin, direction=direction, metadata=metadata),
+            SITKCastd(keys=[PRED_TTB_KEY], dtype=sitk.sitkInt8),
         ]
     )
 

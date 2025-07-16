@@ -14,7 +14,7 @@ dependencies = [
     "pydantic>=2.11.7",
     "pydantic-settings>=2.10.1",
     "simpleitk>=2.5.2",
-    "torch==2.6.0",              # Fix to use CUDA 12.4 in docker container
+    "torch==2.6.0", # Fix to use CUDA 12.4 in docker container
     "typer>=0.16.0",
 ]
 

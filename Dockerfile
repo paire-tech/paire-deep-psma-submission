@@ -10,6 +10,11 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 # Create a non-root user
 RUN useradd --uid 1000 appuser
 
+# Required environment variables for nnUNet
+ENV nnUNet_raw="/app/nnUNet_raw"
+ENV nnUNet_preprocessed="/app/nnUNet_preprocessed"
+ENV nnUNet_results="/app/nnUNet_results"
+
 # Remove unnecessary packages and clean cache
 RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
@@ -25,6 +30,11 @@ RUN pip list --format=columns | grep -E "(torch|cuda|nvidia)"
 
 # Copy project files
 COPY --chown=appuser:appuser .python-version pyproject.toml uv.lock README.md src/ ./
+
+# Setup directories / ckpt for nnUNet
+COPY --chown=appuser:appuser ./data/nnUNet_raw/ /app/nnUNet_raw/
+COPY --chown=appuser:appuser ./data/nnUNet_preprocessed/ /app/nnUNet_preprocessed/
+COPY --chown=appuser:appuser ./data/nnUNet_results/ /app/nnUNet_results/
 
 # Export requirements, using uv
 RUN if [ "$BUILD_MODE" = "dev" ]; then \

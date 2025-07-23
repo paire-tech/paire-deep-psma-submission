@@ -69,38 +69,6 @@ def main(
         dir_okay=True,
         readable=True,
     ),
-    device: str = Option(
-        settings.DEVICE,
-        "--device",
-        "-d",
-        help="Device to run the model on. Use 'cpu', 'cuda', or 'auto' for automatic detection.",
-    ),
-    use_mixed_precision: bool = Option(
-        settings.MIXED_PRECISION,
-        "--mixed-precision",
-        "-m",
-        help="Use mixed precision for inference. This can speed up inference on compatible hardware.",
-        is_flag=True,
-    ),
-    weights_dir: str = Option(
-        settings.WEIGHTS_DIR,
-        "--weights-dir",
-        "-w",
-        help="Directory containing the model weights.",
-    ),
-    do_not_postprocess_fdg_based_on_psma_classes: bool = Option(
-        settings.DO_NOT_POSTPROCESS_FDG_BASED_ON_PSMA_CLASSES,
-        "--do-not-postprocess-fdg-based-on-psma-classes",
-        "-p",
-        help="Postprocess FDG based on PSMA classes.",
-        is_flag=True,
-    ),
-    no_tta: bool = Option(
-        settings.NO_TTA,  # True si USE_TTA=False
-        "--no-tta",
-        help="Disable test time augmentation (TTA). Enabled by default.",
-        is_flag=True,
-    ),
 ) -> None:
     use_tta = not no_tta  # TTA is used unless --no-tta is passed
     postprocess_fdg_based_on_psma_classes = not do_not_postprocess_fdg_based_on_psma_classes

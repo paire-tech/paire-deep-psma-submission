@@ -56,12 +56,6 @@ def main(
         dir_okay=True,
         readable=True,
     ),
-    device: str = Option(
-        settings.DEVICE,
-        "--device",
-        "-d",
-        help="Device to use for inference. Options are 'cuda', 'cpu' or 'mps'.",
-    ),
 ) -> None:
     # This line is used to automatically load nnUNet environment variables in case they
     # are set in a .env file.

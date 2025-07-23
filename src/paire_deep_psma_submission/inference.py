@@ -55,6 +55,10 @@ def execute_lesions_segmentation(
                 "3d_fullres",
                 "-f",
                 str(fold),
+                "-npp",
+                "0",
+                "-nps",
+                "0",
             ],
             check=True,
         )

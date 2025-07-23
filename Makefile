@@ -5,7 +5,7 @@ TESTS:=tests
 CMD:=uv run
 
 APP_NAME:=paire-deep-psma-submission
-APP_VERSION:=$(shell uv version --short)
+APP_VERSION:=$(shell uv version --short)-nnunetv2
 APP_IMAGE:=$(APP_NAME):$(APP_VERSION)
 
 -include .env
@@ -59,9 +59,9 @@ run: ## Run the production docker image
 		-v $(WEIGHTS_DIR):/opt/ml/model/:ro \
 		-v $(INPUT_DIR):/input/:ro \
 		-v $(OUTPUT_DIR):/output/ \
-		$(APP_IMAGE) \
-		--input-format $(INPUT_FORMAT) \
-		--device $(DEVICE)
+		-e INPUT_FORMAT=$(INPUT_FORMAT) \
+		-e LOG_LEVEL=$(LOG_LEVEL) \
+		$(APP_IMAGE)
 
 .PHONY: export
 export: ## Export the production docker image

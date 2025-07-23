@@ -21,6 +21,7 @@ class Settings(BaseSettings):
 
     # Inference configuration
     INPUT_FORMAT: Literal["gc", "csv"] = "gc"
+    INPUT_CSV: str = ""
     INPUT_DIR: str = "/input"
     OUTPUT_DIR: str = "/output"
     WEIGHTS_DIR: str = "/opt/ml/model"

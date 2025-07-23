@@ -1,4 +1,5 @@
 import logging
+from functools import partial
 from pathlib import Path
 from typing import Generator, NotRequired, TypedDict, Union
 
@@ -55,6 +56,11 @@ def main(
         dir_okay=True,
         readable=True,
     ),
+    input_csv: str = Option(
+        settings.INPUT_CSV,
+        "--input-csv",
+        help="Path to the CSV file containing input data. Required if input_format is 'csv'.",
+    ),
     output_dir: str = Option(
         settings.OUTPUT_DIR,
         "--output-dir",
@@ -90,8 +96,8 @@ def main(
     # Load the model only once
     model = load_model(weights_dir, device=device)
 
-    iter_data = iter_grand_challenge_data if input_format == "gc" else iter_csv_data
-    for data in iter_data(input_dir, output_dir):
+    iter_data = iter_grand_challenge_data if input_format == "gc" else partial(iter_csv_data, input_csv=input_csv)
+    for data in iter_data(input_dir=input_dir, output_dir=output_dir):
         # Run inference for PSMA inputs
         log.info("[PSMA] Running lesions segmentation inference")
         log.info("CT image path: '%s'", data["psma_ct_path"])
@@ -176,15 +182,15 @@ def iter_grand_challenge_data(
 
 
 def iter_csv_data(
+    input_csv: Union[str, Path],
     input_dir: Union[str, Path],
     output_dir: Union[str, Path],
 ) -> Generator[DataDict, None, None]:
     input_dir = Path(input_dir)
     output_dir = Path(output_dir)
 
-    csv_path = find_file_path(input_dir, ext=".csv")
-    df = pd.read_csv(csv_path)
-    log.info("Loaded %s entries from '%s'", len(df), csv_path)
+    df = pd.read_csv(input_csv)
+    log.info("Loaded %s entries from '%s'", len(df), input_csv)
 
     df["psma_ct_path"] = df["psma_ct_path"].apply(lambda path: input_dir / path)
     df["psma_organ_segmentation_path"] = df["psma_organ_segmentation_path"].apply(lambda path: input_dir / path)

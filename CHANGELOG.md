@@ -10,5 +10,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### What's Changed
 
 - Included more logs to check the lesions segmentation inference process.
+- Updated Dockerfile to create a non-root user and set permissions.
 - Added new `SITKCastd` tranform to cast predicted TTB to `uint8` as expected by the challenge.
 - Added initial inference code for Task007-PBD.

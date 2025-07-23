@@ -11,7 +11,16 @@ import torch.nn.functional as F
 from monai.inferers import sliding_window_inference
 from torch import Tensor
 
-from .transforms import Divided, LogicalAndd, SITKChangeLabeld, SITKResampleToMatchd, SITKToTensord, Thresholdd, ToSITKd
+from .transforms import (
+    Divided,
+    LogicalAndd,
+    SITKCastd,
+    SITKChangeLabeld,
+    SITKResampleToMatchd,
+    SITKToTensord,
+    Thresholdd,
+    ToSITKd,
+)
 
 log = logging.getLogger(__name__)
 
@@ -155,6 +164,8 @@ def execute_lesions_segmentation(
     device: str = "cpu",
     use_mixed_precision: bool = False,
 ) -> sitk.Image:
+    # Preprocess the inputs
+    log.info("Starting preprocessing")
     tic = time.monotonic()
     log.info("Starting inference with model %s on device %s", model.__class__.__name__, device)
 
@@ -204,6 +215,10 @@ def execute_lesions_segmentation(
 
     # Postprocess the prediction
     tac = time.monotonic()
+    log.info("Inference completed in %.2f seconds", time.monotonic() - tic)
+
+    # Postprocess the prediction
+    tic = time.monotonic()
     log.info("Starting postprocessing")
     pred_tensor = unpad_tensor(pred_tensor, pad_widths)
     pred_image = postprocess(
@@ -277,6 +292,7 @@ def postprocess(
             LogicalAndd(keys=[PRED_TTB_KEY], other_keys=[PT_MASK_KEY]),
             T.SqueezeDimd(keys=[PRED_TTB_KEY], dim=0),  # Remove the channel dimension
             ToSITKd(keys=[PRED_TTB_KEY], spacing=spacing, origin=origin, direction=direction, metadata=metadata),
+            SITKCastd(keys=[PRED_TTB_KEY], dtype=sitk.sitkInt8),
         ]
     )
 

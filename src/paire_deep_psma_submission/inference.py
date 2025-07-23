@@ -164,13 +164,30 @@ def execute_lesions_segmentation(
     device: str = "cpu",
     use_mixed_precision: bool = False,
 ) -> sitk.Image:
+    log.info("CT image:")
+    log.info("  Size: %s", ct_image.GetSize())
+    log.info("  Spacing: %s", ct_image.GetSpacing())
+    log.info("  Origin: %s", ct_image.GetOrigin())
+    log.info("  Direction: %s", ct_image.GetDirection())
+    log.info("PT image:")
+    log.info("  Size: %s", pt_image.GetSize())
+    log.info("  Spacing: %s", pt_image.GetSpacing())
+    log.info("  Origin: %s", pt_image.GetOrigin())
+    log.info("  Direction: %s", pt_image.GetDirection())
+    log.info("Organs segmentation image:")
+    log.info("  Size: %s", organs_segmentation_image.GetSize())
+    log.info("  Spacing: %s", organs_segmentation_image.GetSpacing())
+    log.info("  Origin: %s", organs_segmentation_image.GetOrigin())
+    log.info("  Direction: %s", organs_segmentation_image.GetDirection())
+    log.info("SUV threshold: %.2f", suv_threshold)
+
     # Preprocess the inputs
-    log.debug("Starting preprocessing")
+    log.info("Starting preprocessing")
     tic = time.monotonic()
     image, pt_mask = preprocess(pt_image, ct_image, organs_segmentation_image, suv_threshold, return_pt_mask=True)
     pad_widths = [(0, 0)] + divisible_pad_widths(image.shape[1:], k=32)
     image = pad_tensor(image, pad_widths, mode="constant", value=0.0)
-    log.debug("Preprocessing completed in %.2f seconds", time.monotonic() - tic)
+    log.info("Preprocessing completed in %.2f seconds", time.monotonic() - tic)
 
     image = image.to(device)
     model = model.to(device)
@@ -189,11 +206,11 @@ def execute_lesions_segmentation(
         )
 
     pred_tensor = torch.argmax(logits.float(), dim=1, keepdim=True).squeeze(0)  # type: ignore[union-attr]
-    log.debug("Inference completed in %.2f seconds", time.monotonic() - tic)
+    log.info("Inference completed in %.2f seconds", time.monotonic() - tic)
 
     # Postprocess the prediction
     tic = time.monotonic()
-    log.debug("Starting postprocessing")
+    log.info("Starting postprocessing")
     pred_tensor = unpad_tensor(pred_tensor, pad_widths)
     pred_image = postprocess(
         pred_ttb=(pred_tensor == 1).detach().cpu(),  # TTB label
@@ -204,7 +221,7 @@ def execute_lesions_segmentation(
         direction=pt_image.GetDirection(),
         metadata={k: pt_image.GetMetaData(k) for k in pt_image.GetMetaDataKeys()},
     )
-    log.debug("Postprocessing completed in %.2f seconds", time.monotonic() - tic)
+    log.info("Postprocessing completed in %.2f seconds", time.monotonic() - tic)
 
     # Clear CUDA memory if using GPU
     torch.cuda.empty_cache()

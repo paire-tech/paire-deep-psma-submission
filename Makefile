@@ -59,9 +59,10 @@ run: ## Run the production docker image
 		-v $(WEIGHTS_DIR):/opt/ml/model/:ro \
 		-v $(INPUT_DIR):/input/:ro \
 		-v $(OUTPUT_DIR):/output/ \
-		$(APP_IMAGE) \
-		--input-format $(INPUT_FORMAT) \
-		--device $(DEVICE)
+		-e INPUT_FORMAT=$(INPUT_FORMAT) \
+		-e DEVICE=$(DEVICE) \
+		-e LOG_LEVEL=$(LOG_LEVEL) \
+		$(APP_IMAGE)
 
 .PHONY: export
 export: ## Export the production docker image

@@ -10,8 +10,7 @@ from rich.progress import track
 from typer import Option, Typer
 
 from .config import settings
-from .inference import execute_lesions_segmentation, final_postprocessing
-from .model import load_models
+from .inference import execute_lesions_segmentation
 from .utils import find_file_path, load_json
 
 IMAGE_EXTS = [".nii.gz", ".mha", ".tif", ".tiff"]
@@ -109,52 +108,26 @@ def main(
         raise ValueError(f"Unsupported input format: {input_format}. Supported formats are 'gc' and 'csv'.")
 
     # Load the model only once
-    list_fdg_models = load_models(weights_dir, prefix="fdg", device=device)
-    list_psma_models = load_models(weights_dir, prefix="psma", device=device)
-    log.info("Model loaded")
+    # model = load_model(weights_dir, device=device)
 
     iter_data = iter_grand_challenge_data if input_format == "gc" else partial(iter_csv_data, input_csv=input_csv)
     for data in iter_data(input_dir=input_dir, output_dir=output_dir):
         # Run inference for PSMA inputs
         log.info("[PSMA] Running lesions segmentation inference")
-        log.info("CT image path: '%s'", data["psma_ct_path"])
-        log.info("CT organ segmentation image path: '%s'", data["psma_organ_segmentation_path"])
-        log.info("PT image path: '%s'", data["psma_pt_path"])
-        log.info("PT SUV threshold: %s", data["psma_pt_suv_threshold"])
-
-        psma_pt_image = sitk.ReadImage(data["psma_pt_path"])
-        psma_ct_image = sitk.ReadImage(data["psma_ct_path"])
-        psma_organ_segmentation_image = sitk.ReadImage(data["psma_organ_segmentation_path"])
-        psma_pred_image = execute_lesions_segmentation(
-            pt_image=psma_pt_image,
-            ct_image=psma_ct_image,
-            organs_segmentation_image=psma_organ_segmentation_image,
+        pred_image = execute_lesions_segmentation(
+            pt_image=data["psma_pt_image"],
+            ct_image=data["psma_ct_image"],
             suv_threshold=data["psma_pt_suv_threshold"],
-            list_models=list_psma_models,
-            device=device,
-            use_mixed_precision=use_mixed_precision,
-            use_tta=use_tta,
+            tracer_name="PSMA",
         )
 
         # Run inference for FDG inputs
         log.info("[FDG ] Running lesions segmentation inference")
-        log.info("CT image path: '%s'", data["fdg_ct_path"])
-        log.info("CT organ segmentation image path: '%s'", data["fdg_organ_segmentation_path"])
-        log.info("PT image path: '%s'", data["fdg_pt_path"])
-        log.info("PT SUV threshold: %s", data["fdg_pt_suv_threshold"])
-
-        fdg_pt_image = sitk.ReadImage(data["fdg_pt_path"])
-        fdg_ct_image = sitk.ReadImage(data["fdg_ct_path"])
-        fdg_organ_segmentation_image = sitk.ReadImage(data["fdg_organ_segmentation_path"])
-        fdg_pred_image = execute_lesions_segmentation(
-            pt_image=fdg_pt_image,
-            ct_image=fdg_ct_image,
-            organs_segmentation_image=fdg_organ_segmentation_image,
+        pred_image = execute_lesions_segmentation(
+            pt_image=data["fdg_pt_image"],
+            ct_image=data["fdg_ct_image"],
             suv_threshold=data["fdg_pt_suv_threshold"],
-            list_models=list_fdg_models,
-            device=device,
-            use_mixed_precision=use_mixed_precision,
-            use_tta=use_tta,
+            tracer_name="FDG",
         )
         if postprocess_fdg_based_on_psma_classes:
             fdg_pred_image, psma_pred_image = final_postprocessing(

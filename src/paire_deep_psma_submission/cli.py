@@ -131,15 +131,15 @@ def iter_grand_challenge_data(
     fdg_pt_suv_threshold_path = input_dir / "fdg-pet-suv-threshold.json"
     psma_to_fdg_registration_path = input_dir / "psma-to-fdg-registration.json"
 
-    log.info("PSMA CT image path: %s", psma_ct_image_path)
-    log.info("PSMA CT organ segmentation image path: %s", psma_ct_image_organ_segmentation_path)
-    log.info("PSMA PT image path: %s", psma_pt_image_path)
-    log.info("PSMA PT SUV threshold path: %s", psma_pt_suv_threshold_path)
-    log.info("FDG CT image path: %s", fdg_ct_image_path)
-    log.info("FDG CT organ segmentation image path: %s", fdg_ct_image_organ_segmentation_path)
-    log.info("FDG PT image path: %s", fdg_pt_image_path)
-    log.info("FDG PT SUV threshold path: %s", fdg_pt_suv_threshold_path)
-    log.info("PSMA to FDG registration path: %s", psma_to_fdg_registration_path)
+    log.info("PSMA CT image path: '%s'", psma_ct_image_path)
+    log.info("PSMA CT organ segmentation image path: '%s'", psma_ct_image_organ_segmentation_path)
+    log.info("PSMA PT image path: '%s'", psma_pt_image_path)
+    log.info("PSMA PT SUV threshold path: '%s'", psma_pt_suv_threshold_path)
+    log.info("FDG CT image path: '%s'", fdg_ct_image_path)
+    log.info("FDG CT organ segmentation image path: '%s'", fdg_ct_image_organ_segmentation_path)
+    log.info("FDG PT image path: '%s'", fdg_pt_image_path)
+    log.info("FDG PT SUV threshold path: '%s'", fdg_pt_suv_threshold_path)
+    log.info("PSMA to FDG registration path: '%s'", psma_to_fdg_registration_path)
 
     psma_to_fdg_registration = load_json(psma_to_fdg_registration_path)["3d_affine_transform"]
     psma_to_fdg_registration = np.array(psma_to_fdg_registration, dtype=np.float32)

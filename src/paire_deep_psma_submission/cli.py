@@ -49,25 +49,6 @@ def main(
         dir_okay=True,
         readable=True,
     ),
-    device: str = Option(
-        settings.DEVICE,
-        "--device",
-        "-d",
-        help="Device to run the model on. Use 'cpu', 'cuda', or 'auto' for automatic detection.",
-    ),
-    use_mixed_precision: bool = Option(
-        settings.MIXED_PRECISION,
-        "--mixed-precision",
-        "-m",
-        help="Use mixed precision for inference. This can speed up inference on compatible hardware.",
-        is_flag=True,
-    ),
-    weights_dir: str = Option(
-        settings.WEIGHTS_DIR,
-        "--weights-dir",
-        "-w",
-        help="Directory containing the model weights.",
-    ),
 ) -> None:
     if input_format not in ["gc", "csv"]:
         raise ValueError(f"Unsupported input format: {input_format}. Supported formats are 'gc' and 'csv'.")

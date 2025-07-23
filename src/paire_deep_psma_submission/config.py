@@ -2,7 +2,6 @@ import logging
 from typing import Literal
 
 import torch
-from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from rich.logging import RichHandler
 
@@ -23,20 +22,10 @@ class Settings(BaseSettings):
     INPUT_FORMAT: Literal["gc", "csv"] = "gc"
     INPUT_DIR: str = "/input"
     OUTPUT_DIR: str = "/output"
-    WEIGHTS_DIR: str = "/opt/ml/model"
-    DEVICE: str = "auto"
-    MIXED_PRECISION: bool = False
 
     # Logging configuration
     LOG_FORMAT: str = "%(message)s"
     LOG_LEVEL: str = "INFO"
-
-    @field_validator("DEVICE")
-    def validate_device(cls, value: str) -> str:
-        value = value.lower()
-        if value == "auto":
-            return "cuda" if CUDA_AVAILABLE else "cpu"
-        return "cpu" if not CUDA_AVAILABLE else value
 
 
 settings = Settings()

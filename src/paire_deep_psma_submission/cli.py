@@ -10,7 +10,6 @@ from typer import Option, Typer
 
 from .config import settings
 from .inference import execute_lesions_segmentation
-from .model import load_model
 from .utils import find_file_path, load_json
 
 IMAGE_EXTS = [".nii.gz", ".mha", ".tif", ".tiff"]
@@ -74,7 +73,7 @@ def main(
         raise ValueError(f"Unsupported input format: {input_format}. Supported formats are 'gc' and 'csv'.")
 
     # Load the model only once
-    model = load_model(weights_dir, device=device)
+    # model = load_model(weights_dir, device=device)
 
     iter_data = iter_grand_challenge_data if input_format == "gc" else iter_csv_data
     for data in iter_data(input_dir, output_dir):
@@ -83,11 +82,8 @@ def main(
         pred_image = execute_lesions_segmentation(
             pt_image=data["psma_pt_image"],
             ct_image=data["psma_ct_image"],
-            organs_segmentation_image=data["psma_organ_segmentation_image"],
             suv_threshold=data["psma_pt_suv_threshold"],
-            model=model,
-            device=device,
-            use_mixed_precision=use_mixed_precision,
+            tracer_name="PSMA",
         )
 
         pred_path = Path(data["psma_pred_path"])
@@ -100,11 +96,8 @@ def main(
         pred_image = execute_lesions_segmentation(
             pt_image=data["fdg_pt_image"],
             ct_image=data["fdg_ct_image"],
-            organs_segmentation_image=data["fdg_organ_segmentation_image"],
             suv_threshold=data["fdg_pt_suv_threshold"],
-            model=model,
-            device=device,
-            use_mixed_precision=use_mixed_precision,
+            tracer_name="FDG",
         )
 
         pred_path = Path(data["fdg_pred_path"])

@@ -13,6 +13,8 @@ from .config import settings
 from .inference import execute_lesions_segmentation
 from .model import load_model
 from .utils import find_file_path, load_json
+from .transforms import SITKResampleToMatchd
+from .postprocessing_utils import post_process_FDG_based_on_PSMA_classes
 
 IMAGE_EXTS = [".nii.gz", ".mha", ".tif", ".tiff"]
 
@@ -104,20 +106,18 @@ def main(
         log.info("CT organ segmentation image path: '%s'", data["psma_organ_segmentation_path"])
         log.info("PT image path: '%s'", data["psma_pt_path"])
         log.info("PT SUV threshold path: '%s'", data["psma_pt_suv_threshold"])
-        pred_image = execute_lesions_segmentation(
-            pt_image=sitk.ReadImage(data["psma_pt_path"]),
-            ct_image=sitk.ReadImage(data["psma_ct_path"]),
-            organs_segmentation_image=sitk.ReadImage(data["psma_organ_segmentation_path"]),
+        data["psma_pt_image"] = sitk.ReadImage(data["psma_pt_path"])
+        data["psma_organs_image"] = sitk.ReadImage(data["psma_organ_segmentation_path"])
+        data["psma_ct_image"] = sitk.ReadImage(data["psma_ct_path"])
+        psma_pred_image = execute_lesions_segmentation(
+            pt_image=data["psma_pt_image"],
+            ct_image=data["psma_ct_image"],
+            organs_segmentation_image=data["psma_organs_image"],
             suv_threshold=data["psma_pt_suv_threshold"],
             model=model,
             device=device,
             use_mixed_precision=use_mixed_precision,
         )
-
-        pred_path = Path(data["psma_pred_path"])
-        pred_path.parent.mkdir(parents=True, exist_ok=True)
-        log.info("[PSMA] Saving prediction to '%s'", pred_path)
-        sitk.WriteImage(pred_image, pred_path)
 
         # Run inference for FDG inputs
         log.info("[FDG ] Running lesions segmentation inference")
@@ -125,20 +125,42 @@ def main(
         log.info("CT organ segmentation image path: '%s'", data["fdg_organ_segmentation_path"])
         log.info("PT image path: '%s'", data["fdg_pt_path"])
         log.info("PT SUV threshold path: '%s'", data["fdg_pt_suv_threshold"])
-        pred_image = execute_lesions_segmentation(
-            pt_image=sitk.ReadImage(data["fdg_pt_path"]),
-            ct_image=sitk.ReadImage(data["fdg_ct_path"]),
-            organs_segmentation_image=sitk.ReadImage(data["fdg_organ_segmentation_path"]),
+        data["fdg_pt_image"] = sitk.ReadImage(data["fdg_pt_path"])
+        data["fdg_organs_image"] = sitk.ReadImage(data["fdg_pt_suv_threshold"])
+        data["fdg_ct_image"] = sitk.ReadImage(data["fdg_ct_path"])
+
+        fdg_pred_image = execute_lesions_segmentation(
+            pt_image=data["fdg_pt_image"],
+            ct_image=data["fdg_ct_image"],
+            organs_segmentation_image=data["fdg_organs_image"],
             suv_threshold=data["fdg_pt_suv_threshold"],
             model=model,
             device=device,
             use_mixed_precision=use_mixed_precision,
         )
 
-        pred_path = Path(data["fdg_pred_path"])
-        pred_path.parent.mkdir(parents=True, exist_ok=True)
-        log.info("[FDG ] Saving prediction to '%s'", pred_path)
-        sitk.WriteImage(pred_image, pred_path)
+        data =  SITKResampleToMatchd(keys = ["psma_organs_image"],
+                             key_dst = "psma_pt_image",
+                             mode="nearest")(data)
+        data = SITKResampleToMatchd(keys = ["fdg_organs_image"],
+                             key_dst = "fdg_pt_image",
+                             mode="nearest")(data)
+
+        fdg_pred_image = post_process_FDG_based_on_PSMA_classes(
+            preds_fdg_sitk=fdg_pred_image,
+            totalsegmentator_resampled_to_fdg=data["fdg_organs_image"],
+            preds_psma_sitk=psma_pred_image,
+            totalsegmentator_resampled_to_psma=data["psma_organs_image"],
+        )
+
+        fdg_pred_path = Path(data["fdg_pred_path"])
+        fdg_pred_path.parent.mkdir(parents=True, exist_ok=True)
+        log.info("[FDG ] Saving prediction to '%s'", fdg_pred_path)
+        sitk.WriteImage(fdg_pred_image, fdg_pred_path)
+        psma_pred_path = Path(data["psma_pred_path"])
+        psma_pred_path.parent.mkdir(parents=True, exist_ok=True)
+        log.info("[PSMA] Saving prediction to '%s'", psma_pred_path)
+        sitk.WriteImage(psma_pred_image, psma_pred_path)
 
 
 def iter_grand_challenge_data(

@@ -12,9 +12,9 @@ from typer import Option, Typer
 from .config import settings
 from .inference import execute_lesions_segmentation
 from .model import load_model
+from .postprocessing_utils import post_process_FDG_based_on_PSMA_classes
 from .utils import find_file_path, load_json
 from .transforms import SITKResampleToMatchd
-from .postprocessing_utils import post_process_FDG_based_on_PSMA_classes
 
 IMAGE_EXTS = [".nii.gz", ".mha", ".tif", ".tiff"]
 

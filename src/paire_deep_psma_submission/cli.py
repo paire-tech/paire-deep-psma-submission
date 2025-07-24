@@ -139,12 +139,8 @@ def main(
             use_mixed_precision=use_mixed_precision,
         )
 
-        data =  SITKResampleToMatchd(keys = ["psma_organs_image"],
-                             key_dst = "psma_pt_image",
-                             mode="nearest")(data)
-        data = SITKResampleToMatchd(keys = ["fdg_organs_image"],
-                             key_dst = "fdg_pt_image",
-                             mode="nearest")(data)
+        data = SITKResampleToMatchd(keys=["psma_organs_image"], key_dst="psma_pt_image", mode="nearest")(data)
+        data = SITKResampleToMatchd(keys=["fdg_organs_image"], key_dst="fdg_pt_image", mode="nearest")(data)
 
         fdg_pred_image = post_process_FDG_based_on_PSMA_classes(
             preds_fdg_sitk=fdg_pred_image,

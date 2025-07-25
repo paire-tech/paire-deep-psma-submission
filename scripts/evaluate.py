@@ -99,7 +99,7 @@ def main(
     df_scores["metric"] = df_scores.index
     df_scores = df_scores[["metric"] + [col for col in df_scores.columns if col != "metric"]]
 
-    table = Table(title="Evaluation Scores", title_justify="left")
+    table = Table()
     for col in df_scores.columns:
         table.add_column(col, justify="right", style="cyan" if col != "metric" else "", no_wrap=True)
     for row in df_scores.values:
@@ -107,12 +107,13 @@ def main(
     print(table)
 
 
-def label_array(mask: np.ndarray) -> np.ndarray:
-    return cc3d.connected_components(mask > 0, connectivity=18)
+def label_mask(mask: np.ndarray) -> np.ndarray:
+    structure = scipy.ndimage.generate_binary_structure(3, 2)
+    return scipy.ndimage.label(mask > 0, structure=structure)
 
 
 def fp_volume_score(gt_array: np.ndarray, pred_array: np.ndarray) -> float:
-    pred_label, num_labels = scipy.ndimage.label(pred_array)
+    pred_label, num_labels = label_mask(pred_array)
     gt_array = gt_array > 0  # Ensure target is binary
 
     if num_labels == 0:
@@ -127,7 +128,7 @@ def fp_volume_score(gt_array: np.ndarray, pred_array: np.ndarray) -> float:
 
 
 def fn_volume_score(gt_array: np.ndarray, pred_array: np.ndarray) -> float:
-    target_label, num_labels = scipy.ndimage.label(gt_array)
+    target_label, num_labels = label_mask(gt_array)
     pred_array = pred_array > 0  # Ensure pred is binary
 
     if num_labels == 0:
@@ -173,7 +174,7 @@ def read_label(label_path: str) -> tuple[np.ndarray, float]:
 
 def compute_scores(gt_path: str, pred_path: str) -> dict[str, float]:
     gt_ar, voxel_volume = read_label(gt_path)
-    pred_ar, voxel_volume = read_label(pred_path)  # could input check for matching resolution...
+    pred_ar, _ = read_label(pred_path)
     dice = dice_score(gt_ar, pred_ar)
     fp_volume = fp_volume_score(gt_ar, pred_ar) * voxel_volume
     fn_volume = fn_volume_score(gt_ar, pred_ar) * voxel_volume

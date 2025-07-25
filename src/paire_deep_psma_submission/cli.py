@@ -67,8 +67,8 @@ def main(
     # Load the model only once
     # model = load_model(weights_dir, device=device)
 
-    iter_data = iter_grand_challenge_data if input_format == "gc" else iter_csv_data
-    for data in iter_data(input_dir, output_dir):
+    iter_data = iter_grand_challenge_data if input_format == "gc" else partial(iter_csv_data, input_csv=input_csv)
+    for data in iter_data(input_dir=input_dir, output_dir=output_dir):
         # Run inference for PSMA inputs
         log.info("[PSMA] Running lesions segmentation inference")
         psma_pred_image = execute_lesions_segmentation_ensemble(

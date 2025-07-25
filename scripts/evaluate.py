@@ -5,7 +5,6 @@ import logging
 from functools import partial
 from pathlib import Path
 
-import cc3d
 import numpy as np
 import pandas as pd
 import scipy.ndimage

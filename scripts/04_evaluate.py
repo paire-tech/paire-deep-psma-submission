@@ -33,17 +33,17 @@ def main() -> None:
     print(f"Loaded {len(df)} entries from {input_csv}")
 
     # Resolve inputs / outputs paths
-    df["psma_pt_ttb_path"] = df["psma_pt_ttb_path"].apply(lambda path: Path(args.input_dir, path) if path else None)
-    df["fdg_pt_ttb_path"] = df["fdg_pt_ttb_path"].apply(lambda path: Path(args.input_dir, path) if path else None)
-    df["psma_pred_path"] = df["psma_pred_path"].apply(lambda path: Path(args.output_dir, path) if path else None)
-    df["fdg_pred_path"] = df["fdg_pred_path"].apply(lambda path: Path(args.output_dir, path) if path else None)
+    df["psma_pt_ttb_path"] = df["psma_pt_ttb_path"].apply(lambda path: input_dir / path if path else None)
+    df["fdg_pt_ttb_path"] = df["fdg_pt_ttb_path"].apply(lambda path: input_dir / path if path else None)
+    df["psma_pred_path"] = df["psma_pred_path"].apply(lambda path: output_dir / path if path else None)
+    df["fdg_pred_path"] = df["fdg_pred_path"].apply(lambda path: output_dir / path if path else None)
 
     results = []
     for _, row in track(df.iterrows(), total=len(df), description="Evaluating..."):
-        psma_gt_path = Path(row["psma_pt_ttb_path"]).resolve()
-        psma_pred_path = Path(row["psma_pred_path"]).resolve()
-        fdg_gt_path = Path(row["fdg_pt_ttb_path"]).resolve()
-        fdg_pred_path = Path(row["fdg_pred_path"]).resolve()
+        psma_gt_path = row["psma_pt_ttb_path"]
+        psma_pred_path = row["psma_pred_path"]
+        fdg_gt_path = row["fdg_pt_ttb_path"]
+        fdg_pred_path = row["fdg_pred_path"]
 
         print(f"[PSMA] Evaluating {psma_gt_path} and {psma_pred_path}")
         psma_scores = compute_scores(psma_gt_path, psma_pred_path) if (psma_gt_path and psma_pred_path) else {}

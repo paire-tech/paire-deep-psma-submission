@@ -66,17 +66,17 @@ def main(
     log.info("Loaded %s entries from '%s'", len(df), input_csv)
 
     # Resolve inputs / outputs paths
-    df["psma_pt_ttb_image"] = df["psma_pt_ttb_image"].apply(lambda path: input_dir / path if path else None)
-    df["fdg_pt_ttb_image"] = df["fdg_pt_ttb_image"].apply(lambda path: input_dir / path if path else None)
-    df["psma_pred_image"] = df["psma_pred_image"].apply(lambda path: output_dir / path if path else None)
-    df["fdg_pred_image"] = df["fdg_pred_image"].apply(lambda path: output_dir / path if path else None)
+    df["psma_pt_ttb_path"] = df["psma_pt_ttb_path"].apply(lambda path: input_dir / path if path else None)
+    df["fdg_pt_ttb_path"] = df["fdg_pt_ttb_path"].apply(lambda path: input_dir / path if path else None)
+    df["psma_pred_path"] = df["psma_pred_path"].apply(lambda path: output_dir / path if path else None)
+    df["fdg_pred_path"] = df["fdg_pred_path"].apply(lambda path: output_dir / path if path else None)
 
     results = []
     for _, row in track(df.iterrows(), total=len(df), description="Evaluating..."):
-        psma_gt_path = row["psma_pt_ttb_image"]
-        psma_pred_path = row["psma_pred_image"]
-        fdg_gt_path = row["fdg_pt_ttb_image"]
-        fdg_pred_path = row["fdg_pred_image"]
+        psma_gt_path = row["psma_pt_ttb_path"]
+        psma_pred_path = row["psma_pred_path"]
+        fdg_gt_path = row["fdg_pt_ttb_path"]
+        fdg_pred_path = row["fdg_pred_path"]
 
         log.info("[PSMA] Evaluating '%s' and '%s'", psma_gt_path, psma_pred_path)
         psma_scores = compute_scores(psma_gt_path, psma_pred_path) if (psma_gt_path and psma_pred_path) else {}
@@ -99,7 +99,7 @@ def main(
     df_scores["metric"] = df_scores.index
     df_scores = df_scores[["metric"] + [col for col in df_scores.columns if col != "metric"]]
 
-    table = Table(title="Evaluation Scores", title_justify="left")
+    table = Table()
     for col in df_scores.columns:
         table.add_column(col, justify="right", style="cyan" if col != "metric" else "", no_wrap=True)
     for row in df_scores.values:

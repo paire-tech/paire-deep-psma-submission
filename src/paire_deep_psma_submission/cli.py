@@ -94,7 +94,6 @@ def main(
         "--postprocess-fdg-based-on-psma-classes",
         "-p",
         help="Postprocess FDG based on PSMA classes.",
-        default=True,
         is_flag=True,
     ),
 ) -> None:

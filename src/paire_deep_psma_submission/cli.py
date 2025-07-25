@@ -89,6 +89,14 @@ def main(
         "-w",
         help="Directory containing the model weights.",
     ),
+    postprocess_fdg_based_on_psma_classes: bool = Option(
+        settings.POSTPROCESS_FDG_BASED_ON_PSMA_CLASSES,
+        "--postprocess-fdg-based-on-psma-classes",
+        "-p",
+        help="Postprocess FDG based on PSMA classes.",
+        default=True,
+        is_flag=True,
+    ),
 ) -> None:
     if input_format not in ["gc", "csv"]:
         raise ValueError(f"Unsupported input format: {input_format}. Supported formats are 'gc' and 'csv'.")
@@ -137,15 +145,15 @@ def main(
             device=device,
             use_mixed_precision=use_mixed_precision,
         )
-
-        fdg_pred_image, psma_pred_image = final_postprocessing(
-            fdg_pt_image=fdg_pt_image,
-            fdg_pred_image=fdg_pred_image,
-            fdg_organ_segmentation_image=fdg_organ_segmentation_image,
-            psma_pt_image=psma_pt_image,
-            psma_pred_image=psma_pred_image,
-            psma_organ_segmentation_image=psma_organ_segmentation_image,
-        )
+        if postprocess_fdg_based_on_psma_classes:
+            fdg_pred_image, psma_pred_image = final_postprocessing(
+                fdg_pt_image=fdg_pt_image,
+                fdg_pred_image=fdg_pred_image,
+                fdg_organ_segmentation_image=fdg_organ_segmentation_image,
+                psma_pt_image=psma_pt_image,
+                psma_pred_image=psma_pred_image,
+                psma_organ_segmentation_image=psma_organ_segmentation_image,
+            )
 
         fdg_pred_path = Path(data["fdg_pred_path"])
         fdg_pred_path.parent.mkdir(parents=True, exist_ok=True)

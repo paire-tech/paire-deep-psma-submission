@@ -161,7 +161,7 @@ def iter_csv_data(
     input_csv: Union[str, Path],
     input_dir: Union[str, Path],
     output_dir: Union[str, Path],
-) -> Generator[DataDict, None, None]:
+) -> Generator[Dict[str, Any], None, None]:
     input_dir = Path(input_dir)
     output_dir = Path(output_dir)
 

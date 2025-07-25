@@ -74,37 +74,6 @@ def main() -> None:
     print(table)
 
 
-def parse_args() -> Namespace:
-    parser = ArgumentParser(description="Evaluate segmentation results against ground truth labels.")
-    parser.add_argument(
-        "-i",
-        "--input-dir",
-        type=str,
-        default=INPUT_DIR,
-        help="Directory containing the ground truth labels.",
-    )
-    parser.add_argument(
-        "-o",
-        "--output-dir",
-        type=str,
-        default=OUTPUT_DIR,
-        help="Directory containing the predicted segmentation results.",
-    )
-    parser.add_argument(
-        "--input-csv",
-        type=str,
-        required=True,
-        help="Path of the CSV format.",
-    )
-    parser.add_argument(
-        "--output-csv",
-        type=str,
-        required=True,
-        help="Path of the output CSV file.",
-    )
-    return parser.parse_args()
-
-
 def label_mask(mask: np.ndarray) -> np.ndarray:
     structure = scipy.ndimage.generate_binary_structure(3, 2)
     return scipy.ndimage.label(mask > 0, structure=structure)

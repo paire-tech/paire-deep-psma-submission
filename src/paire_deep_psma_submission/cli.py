@@ -96,6 +96,13 @@ def main(
         help="Postprocess FDG based on PSMA classes.",
         is_flag=True,
     ),
+    use_tta: bool = Option(
+        settings.USE_TTA,
+        "--use-tta",
+        "-t",
+        help="Use test time augmentation.",
+        is_flag=True,
+    ),
 ) -> None:
     if input_format not in ["gc", "csv"]:
         raise ValueError(f"Unsupported input format: {input_format}. Supported formats are 'gc' and 'csv'.")
@@ -103,6 +110,7 @@ def main(
     # Load the model only once
     list_fdg_models = load_models(weights_dir, prefix="fdg", device=device)
     list_psma_models = load_models(weights_dir, prefix="psma", device=device)
+    log.info("Model loaded")
 
     iter_data = iter_grand_challenge_data if input_format == "gc" else partial(iter_csv_data, input_csv=input_csv)
     for data in iter_data(input_dir=input_dir, output_dir=output_dir):
@@ -124,6 +132,7 @@ def main(
             list_models=list_psma_models,
             device=device,
             use_mixed_precision=use_mixed_precision,
+            use_tta=use_tta,
         )
 
         # Run inference for FDG inputs
@@ -173,7 +182,6 @@ def iter_grand_challenge_data(
     # Grand Challenge data have only one set of inputs, and the algorithm / docker is used for each set / exam
     input_dir = Path(input_dir)
     images_dir = input_dir / "images"
-
     psma_ct_path = find_file_path(images_dir / "psma-ct", ext=IMAGE_EXTS)
     psma_ct_image_organ_segmentation_path = find_file_path(images_dir / "psma-ct-organ-segmentation", ext=IMAGE_EXTS)
     psma_pt_path = find_file_path(images_dir / "psma-pet-ga-68", ext=IMAGE_EXTS)

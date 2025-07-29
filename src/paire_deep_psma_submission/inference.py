@@ -163,6 +163,7 @@ def execute_lesions_segmentation(
     list_models: list,
     device: str = "cpu",
     use_mixed_precision: bool = False,
+    use_tta: bool = False,
 ) -> sitk.Image:
     # Preprocess the inputs
     log.info("Starting preprocessing")
@@ -212,6 +213,21 @@ def execute_lesions_segmentation(
                 mode="constant",
             )
             list_logits.append(logits)  # type: ignore
+            if use_tta:
+                log.info("Using TTA")
+                tta_flips = [[2], [3], [2, 3]]
+                for flip_idx in tta_flips:
+                    flip = T.Flip(spatial_axis=flip_idx)
+                    logits_fliped = sliding_window_inference(
+                        inputs=flip(image),
+                        predictor=model,
+                        roi_size=[128, 96, 224],
+                        sw_batch_size=4,
+                        overlap=0.25,
+                        mode="constant",
+                    )
+                    logits += flip.inverse(logits_fliped) # type: ignore
+                logits /= len(tta_flips) + 1 # type: ignore
 
     logits = torch.stack(list_logits)
     logits = logits.mean(dim=0)

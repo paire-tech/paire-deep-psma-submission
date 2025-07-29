@@ -7,9 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-### What's Changed 
 - Do not pad inputs as there is sliding window inference
 - Load Separately models for FDG & PSMA
+- Add TTA
 - Postprocess FDG PREDS based on PSMA classes
 - Allow passing a CSV path as env or argument to the inference.
 - Included more logs to check the lesions segmentation inference process.

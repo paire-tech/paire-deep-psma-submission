@@ -1,13 +1,12 @@
 import itertools
 import logging
 import time
-from typing import Any, Dict, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import monai.transforms as T
 import numpy as np
 import SimpleITK as sitk
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from monai.inferers import sliding_window_inference
 from torch import Tensor
@@ -161,14 +160,14 @@ def execute_lesions_segmentation(
     pt_image: sitk.Image,
     organs_segmentation_image: sitk.Image,
     suv_threshold: float,
-    model: nn.Module,
+    list_models: list,
     device: str = "cpu",
     use_mixed_precision: bool = False,
 ) -> sitk.Image:
     # Preprocess the inputs
     log.info("Starting preprocessing")
     tic = time.monotonic()
-    log.info("Starting inference with model %s on device %s", model.__class__.__name__, device)
+    log.info("Starting inference with model %s on device %s", list_models[0].__class__.__name__, device)
 
     log.info("CT image:")
     log.info("  Size: %s", ct_image.GetSize())
@@ -191,27 +190,33 @@ def execute_lesions_segmentation(
     tac = time.monotonic()
     log.info("Starting preprocessing")
     image, pt_mask = preprocess(pt_image, ct_image, organs_segmentation_image, suv_threshold, return_pt_mask=True)
-    pad_widths = [(0, 0)] + divisible_pad_widths(image.shape[1:], k=32)
-    image = pad_tensor(image, pad_widths, mode="constant", value=0.0)
+    # pad_widths = [(0, 0)] + divisible_pad_widths(image.shape[1:], k=32)
+    # image = pad_tensor(image, pad_widths, mode="constant", value=0.0)
     log.info("Preprocessing completed in %.2f seconds", time.monotonic() - tac)
 
     image = image.to(device)
-    model = model.to(device)
 
     tac = time.monotonic()
     log.info("Starting inference on '%s' device with input %s", device, tuple(image.shape))
-    model.eval()
-    with torch.amp.autocast(device_type=device, enabled=use_mixed_precision, cache_enabled=False):
-        logits = sliding_window_inference(
-            inputs=image.unsqueeze(0),
-            predictor=model,
-            roi_size=[128, 96, 224],
-            sw_batch_size=4,
-            overlap=0.25,
-            mode="constant",
-        )
+    list_logits: List[Tensor] = []
+    for model in list_models:
+        model.to(device)
+        model.eval()
+        with torch.amp.autocast(device_type=device, enabled=use_mixed_precision, cache_enabled=False):
+            logits = sliding_window_inference(
+                inputs=image.unsqueeze(0),
+                predictor=model,
+                roi_size=[128, 96, 224],
+                sw_batch_size=4,
+                overlap=0.25,
+                mode="constant",
+            )
+            list_logits.append(logits)  # type: ignore
 
-    pred_tensor = torch.argmax(logits.float(), dim=1, keepdim=True).squeeze(0)  # type: ignore[union-attr]
+    logits = torch.stack(list_logits)
+    logits = logits.mean(dim=0)
+
+    pred_tensor = torch.argmax(logits.float(), dim=1, keepdim=True).squeeze(0)
     log.info("Inference completed in %.2f seconds", time.monotonic() - tac)
 
     # Postprocess the prediction
@@ -221,7 +226,7 @@ def execute_lesions_segmentation(
     # Postprocess the prediction
     tic = time.monotonic()
     log.info("Starting postprocessing")
-    pred_tensor = unpad_tensor(pred_tensor, pad_widths)
+    # pred_tensor = unpad_tensor(pred_tensor, pad_widths)
     pred_image = postprocess(
         pred_ttb=(pred_tensor == 1).detach().cpu(),  # TTB label
         pt_mask=pt_mask.detach().cpu(),

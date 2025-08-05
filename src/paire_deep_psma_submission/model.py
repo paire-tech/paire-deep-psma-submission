@@ -1,15 +1,14 @@
 import logging
 from pathlib import Path
-from typing import Union
+from typing import List, Union
 
 import torch
-import torch.nn as nn
 from monai.networks.nets import DynUNet
 
 log = logging.getLogger(__name__)
 
 
-def load_model(weights_dir: Union[str, Path], device: str = "cpu") -> nn.Module:
+def load_model(weights_dir: Union[str, Path], prefix: str, device: str = "cpu") -> List[DynUNet]:
     model = DynUNet(
         spatial_dims=3,
         in_channels=12,
@@ -25,14 +24,12 @@ def load_model(weights_dir: Union[str, Path], device: str = "cpu") -> nn.Module:
         trans_bias=False,
     ).to(device)
 
-    weights_paths = list(Path(weights_dir).glob("*.pth"))
-    if len(weights_paths) != 1:
-        raise ValueError(f"Expected exactly one weights file in {weights_dir}, found {len(weights_paths)}.")
-
-    weights_path = weights_paths[0]
-    log.info("Loading model weights from '%s'", weights_path)
-    state_dict = torch.load(weights_path, map_location=device)
-    model.load_state_dict(state_dict, strict=True)
-    log.info("Successfully loaded model from '%s' on '%s' device", weights_path, device)
-
-    return model
+    weights_paths = list(Path(weights_dir).glob(f"{prefix}*.pth"))
+    list_models = []
+    for weights_path in weights_paths:
+        log.info("Loading model weights from '%s'", weights_path)
+        state_dict = torch.load(weights_path, map_location=device)
+        model.load_state_dict(state_dict, strict=True)
+        log.info("Successfully loaded model from '%s' on '%s' device", weights_path, device)
+        list_models.append(model)
+    return list_models

@@ -39,6 +39,7 @@ def load_model_from_file(weights_path: Union[str, Path], device: str = "cpu") ->
     log.info("Successfully loaded model from '%s' on '%s' device", weights_path, device)
     return model
 
+
 def load_models(weights_dir: Union[str, Path], prefix: str, device: str = "cpu") -> List[DynUNet]:
     """
     Load a list of models from a directory.

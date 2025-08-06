@@ -11,7 +11,7 @@ from typer import Option, Typer
 
 from .config import settings
 from .inference import execute_lesions_segmentation, final_postprocessing
-from .model import load_model
+from .model import load_models
 from .utils import find_file_path, load_json
 
 IMAGE_EXTS = [".nii.gz", ".mha", ".tif", ".tiff"]
@@ -101,7 +101,8 @@ def main(
         raise ValueError(f"Unsupported input format: {input_format}. Supported formats are 'gc' and 'csv'.")
 
     # Load the model only once
-    model = load_model(weights_dir, device=device)
+    list_fdg_models = load_models(weights_dir, prefix="fdg", device=device)
+    list_psma_models = load_models(weights_dir, prefix="psma", device=device)
 
     iter_data = iter_grand_challenge_data if input_format == "gc" else partial(iter_csv_data, input_csv=input_csv)
     for data in iter_data(input_dir=input_dir, output_dir=output_dir):
@@ -120,7 +121,7 @@ def main(
             ct_image=psma_ct_image,
             organs_segmentation_image=psma_organ_segmentation_image,
             suv_threshold=data["psma_pt_suv_threshold"],
-            model=model,
+            list_models=list_psma_models,
             device=device,
             use_mixed_precision=use_mixed_precision,
         )
@@ -140,7 +141,7 @@ def main(
             ct_image=fdg_ct_image,
             organs_segmentation_image=fdg_organ_segmentation_image,
             suv_threshold=data["fdg_pt_suv_threshold"],
-            model=model,
+            list_models=list_fdg_models,
             device=device,
             use_mixed_precision=use_mixed_precision,
         )
@@ -240,3 +241,7 @@ def iter_csv_data(
             "fdg_pred_path": row["fdg_pred_path"],
             "psma_to_fdg_registration": row.get("psma_to_fdg_registration", None),
         }
+
+
+if __name__ == "__main__":
+    app()

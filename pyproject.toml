@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "paire-deep-psma-submission"
-version = "0.1.0"
+version = "0.1.1"
 description = "Submission for the DEEP PSMA Grand Challenge"
 readme = "README.md"
 requires-python = ">=3.11, <3.13"

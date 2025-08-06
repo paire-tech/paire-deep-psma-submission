@@ -11,7 +11,7 @@ from typer import Option, Typer
 
 from .config import settings
 from .inference import execute_lesions_segmentation, final_postprocessing
-from .model import load_model
+from .model import load_models
 from .utils import find_file_path, load_json
 
 IMAGE_EXTS = [".nii.gz", ".mha", ".tif", ".tiff"]
@@ -101,8 +101,8 @@ def main(
         raise ValueError(f"Unsupported input format: {input_format}. Supported formats are 'gc' and 'csv'.")
 
     # Load the model only once
-    list_fdg_models = load_model(weights_dir, prefix="fdg", device=device)
-    list_psma_models = load_model(weights_dir, prefix="psma", device=device)
+    list_fdg_models = load_models(weights_dir, prefix="fdg", device=device)
+    list_psma_models = load_models(weights_dir, prefix="psma", device=device)
 
     iter_data = iter_grand_challenge_data if input_format == "gc" else partial(iter_csv_data, input_csv=input_csv)
     for data in iter_data(input_dir=input_dir, output_dir=output_dir):

@@ -215,7 +215,7 @@ def execute_lesions_segmentation(
             list_logits.append(logits)  # type: ignore
             if use_tta:
                 log.info("Using TTA")
-                tta_flips = [1], [2], [2, 1]]
+                tta_flips = [[1], [2], [2, 1]]
                 for flip_idx in tta_flips:
                     flip = T.Flip(spatial_axis=flip_idx)
                     logits_fliped = sliding_window_inference(

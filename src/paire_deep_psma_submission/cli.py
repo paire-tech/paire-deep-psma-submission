@@ -89,20 +89,29 @@ def main(
         "-w",
         help="Directory containing the model weights.",
     ),
-    postprocess_fdg_based_on_psma_classes: bool = Option(
-        settings.POSTPROCESS_FDG_BASED_ON_PSMA_CLASSES,
-        "--postprocess-fdg-based-on-psma-classes",
+    do_not_postprocess_fdg_based_on_psma_classes: bool = Option(
+        settings.DO_NOT_POSTPROCESS_FDG_BASED_ON_PSMA_CLASSES,
+        "--do-not-postprocess-fdg-based-on-psma-classes",
         "-p",
         help="Postprocess FDG based on PSMA classes.",
         is_flag=True,
     ),
+    no_tta: bool = Option(
+        settings.NO_TTA,  # True si USE_TTA=False
+        "--no-tta",
+        help="Disable test time augmentation (TTA). Enabled by default.",
+        is_flag=True,
+    ),
 ) -> None:
+    use_tta = not no_tta  # TTA is used unless --no-tta is passed
+    postprocess_fdg_based_on_psma_classes = not do_not_postprocess_fdg_based_on_psma_classes
     if input_format not in ["gc", "csv"]:
         raise ValueError(f"Unsupported input format: {input_format}. Supported formats are 'gc' and 'csv'.")
 
     # Load the model only once
     list_fdg_models = load_models(weights_dir, prefix="fdg", device=device)
     list_psma_models = load_models(weights_dir, prefix="psma", device=device)
+    log.info("Model loaded")
 
     iter_data = iter_grand_challenge_data if input_format == "gc" else partial(iter_csv_data, input_csv=input_csv)
     for data in iter_data(input_dir=input_dir, output_dir=output_dir):
@@ -124,6 +133,7 @@ def main(
             list_models=list_psma_models,
             device=device,
             use_mixed_precision=use_mixed_precision,
+            use_tta=use_tta,
         )
 
         # Run inference for FDG inputs
@@ -144,6 +154,7 @@ def main(
             list_models=list_fdg_models,
             device=device,
             use_mixed_precision=use_mixed_precision,
+            use_tta=use_tta,
         )
         if postprocess_fdg_based_on_psma_classes:
             fdg_pred_image, psma_pred_image = final_postprocessing(
@@ -173,7 +184,6 @@ def iter_grand_challenge_data(
     # Grand Challenge data have only one set of inputs, and the algorithm / docker is used for each set / exam
     input_dir = Path(input_dir)
     images_dir = input_dir / "images"
-
     psma_ct_path = find_file_path(images_dir / "psma-ct", ext=IMAGE_EXTS)
     psma_ct_image_organ_segmentation_path = find_file_path(images_dir / "psma-ct-organ-segmentation", ext=IMAGE_EXTS)
     psma_pt_path = find_file_path(images_dir / "psma-pet-ga-68", ext=IMAGE_EXTS)

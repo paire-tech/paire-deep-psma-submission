@@ -90,14 +90,14 @@ def main(
         help="Directory containing the model weights.",
     ),
     do_not_postprocess_fdg_based_on_psma_classes: bool = Option(
-        not settings.POSTPROCESS_FDG_BASED_ON_PSMA_CLASSES,
+        settings.DO_NOT_POSTPROCESS_FDG_BASED_ON_PSMA_CLASSES,
         "--do-not-postprocess-fdg-based-on-psma-classes",
         "-p",
         help="Postprocess FDG based on PSMA classes.",
         is_flag=True,
     ),
     no_tta: bool = Option(
-        not settings.USE_TTA,  # True si USE_TTA=False
+        settings.NO_TTA,  # True si USE_TTA=False
         "--no-tta",
         help="Disable test time augmentation (TTA). Enabled by default.",
         is_flag=True,

@@ -27,8 +27,8 @@ class Settings(BaseSettings):
     WEIGHTS_DIR: str = "/opt/ml/model"
     DEVICE: str = "auto"
     MIXED_PRECISION: bool = False
-    POSTPROCESS_FDG_BASED_ON_PSMA_CLASSES: bool = True
-    USE_TTA: bool = True
+    DO_NOT_POSTPROCESS_FDG_BASED_ON_PSMA_CLASSES: bool = False
+    NO_TTA: bool = False
 
     # Logging configuration
     LOG_FORMAT: str = "%(message)s"

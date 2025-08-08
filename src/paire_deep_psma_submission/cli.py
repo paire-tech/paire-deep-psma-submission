@@ -89,21 +89,22 @@ def main(
         "-w",
         help="Directory containing the model weights.",
     ),
-    postprocess_fdg_based_on_psma_classes: bool = Option(
-        settings.POSTPROCESS_FDG_BASED_ON_PSMA_CLASSES,
-        "--postprocess-fdg-based-on-psma-classes",
+    do_not_postprocess_fdg_based_on_psma_classes: bool = Option(
+        not settings.POSTPROCESS_FDG_BASED_ON_PSMA_CLASSES,
+        "--do-not-postprocess-fdg-based-on-psma-classes",
         "-p",
         help="Postprocess FDG based on PSMA classes.",
         is_flag=True,
     ),
-    use_tta: bool = Option(
-        settings.USE_TTA,
-        "--use-tta",
-        "-t",
-        help="Use test time augmentation.",
+    no_tta: bool = Option(
+        not settings.USE_TTA,  # True si USE_TTA=False
+        "--no-tta",
+        help="Disable test time augmentation (TTA). Enabled by default.",
         is_flag=True,
     ),
 ) -> None:
+    use_tta = not no_tta  # TTA is used unless --no-tta is passed
+    postprocess_fdg_based_on_psma_classes = not do_not_postprocess_fdg_based_on_psma_classes
     if input_format not in ["gc", "csv"]:
         raise ValueError(f"Unsupported input format: {input_format}. Supported formats are 'gc' and 'csv'.")
 
@@ -153,6 +154,7 @@ def main(
             list_models=list_fdg_models,
             device=device,
             use_mixed_precision=use_mixed_precision,
+            use_tta=use_tta,
         )
         if postprocess_fdg_based_on_psma_classes:
             fdg_pred_image, psma_pred_image = final_postprocessing(

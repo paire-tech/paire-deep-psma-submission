@@ -210,7 +210,7 @@ def execute_lesions_segmentation(
                 roi_size=[128, 96, 224],
                 sw_batch_size=4,
                 overlap=0.25,
-                mode="constant",
+                mode="gaussian",
             )
             list_logits.append(logits)  # type: ignore
             if use_tta:

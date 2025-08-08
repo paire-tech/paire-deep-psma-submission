@@ -219,14 +219,14 @@ def execute_lesions_segmentation(
                 for flip_idx in tta_flips:
                     flip = T.Flip(spatial_axis=flip_idx)
                     logits_fliped = sliding_window_inference(
-                        inputs=flip(image),
+                        inputs=flip(image.unsqueeze(0)),
                         predictor=model,
                         roi_size=[128, 96, 224],
                         sw_batch_size=4,
                         overlap=0.25,
-                        mode="constant",
+                        mode="gaussian",
                     )
-                    logits += flip.inverse(logits_fliped) # type: ignore
+                    logits += flip.inverse(logits_fliped)  # type: ignore
                     list_logits.append(logits)
     logits = torch.stack(list_logits)
     logits = logits.mean(dim=0)

@@ -227,7 +227,7 @@ def execute_lesions_segmentation(
                         overlap=0.25,
                         mode="gaussian",
                     )
-                    logits += flip.inverse(logits_fliped)  # type: ignore
+                    logits = flip.inverse(logits_fliped)  # type: ignore
                     list_logits.append(logits)
     log.info("Len of list_logits: %s", len(list_logits))
     logits = torch.stack(list_logits)

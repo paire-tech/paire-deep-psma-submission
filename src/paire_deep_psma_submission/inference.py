@@ -25,8 +25,8 @@ from .transforms import (
 log = logging.getLogger(__name__)
 
 # special params used in dict-based transforms
-PT_KEY = "ct"
-CT_KEY = "pt"
+PT_KEY = "pt"
+CT_KEY = "ct"
 ORGANS_KEY = "organs_segmentation"
 PT_MASK_KEY = "pt_mask"
 IMAGE_KEY = "image"

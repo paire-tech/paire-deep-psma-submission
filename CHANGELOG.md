@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+- Removed the `T.ImageFilterd` transform from the inference pipeline.
 - Added gaussian mode for sliding window inference.
 - Do not pad inputs as there is sliding window inference
 - Load Separately models for FDG & PSMA

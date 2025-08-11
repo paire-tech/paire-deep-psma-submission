@@ -309,7 +309,7 @@ def postprocess(
     transform = T.Compose(
         [
             T.ToTensord(keys=[PRED_TTB_KEY], dtype=torch.float32),
-            T.ImageFilterd(keys=[PRED_TTB_KEY], kernel="elliptical", kernel_size=3),
+            # T.ImageFilterd(keys=[PRED_TTB_KEY], kernel="elliptical", kernel_size=3),
             T.AsDiscreted(keys=[PRED_TTB_KEY], threshold=0.5, dtype=torch.int16),
             T.ToTensord(keys=[PRED_TTB_KEY, PT_MASK_KEY], dtype=torch.int16),
             LogicalAndd(keys=[PRED_TTB_KEY], other_keys=[PT_MASK_KEY]),

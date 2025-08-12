@@ -228,7 +228,7 @@ def execute_lesions_segmentation(
                         mode="gaussian",
                     )
                     log.info("Sum of Proba: %s", logits_fliped.softmax(1)[0, 1].sum())  # type: ignore[union-attr]
-                    logits += flip.inverse(logits_fliped)  # type: ignore[operator]
+                    logits += flip.inverse(logits_fliped)  # type: ignore[operator,arg-type]
     if use_tta:
         logits = logits / (1 + len(tta_flips))  # type: ignore
     pred_tensor = torch.argmax(logits.float(), dim=1, keepdim=True).squeeze(0)  # type: ignore

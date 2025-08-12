@@ -1,7 +1,7 @@
 import itertools
 import logging
 import time
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
 import monai.transforms as T
 import numpy as np
@@ -199,7 +199,6 @@ def execute_lesions_segmentation(
 
     tac = time.monotonic()
     log.info("Starting inference on '%s' device with input %s", device, tuple(image.shape))
-    list_logits: List[Tensor] = []
     for model in list_models:
         model.to(device)
         model.eval()
@@ -212,7 +211,6 @@ def execute_lesions_segmentation(
                 overlap=0.25,
                 mode="gaussian",
             )
-            list_logits.append(logits)  # type: ignore
             if use_tta:
                 log.info("Using TTA")
                 tta_flips = [[1], [2], [2, 1]]
@@ -227,13 +225,10 @@ def execute_lesions_segmentation(
                         overlap=0.25,
                         mode="gaussian",
                     )
-                    logits = flip.inverse(logits_fliped)  # type: ignore
-                    list_logits.append(logits)
-    log.info("Len of list_logits: %s", len(list_logits))
-    logits = torch.stack(list_logits)
-    logits = logits.mean(dim=0)
-
-    pred_tensor = torch.argmax(logits.float(), dim=1, keepdim=True).squeeze(0)
+                    logits += flip.inverse(logits_fliped)  # type: ignore
+    if use_tta:
+        logits = logits / (1 + len(tta_flips))  # type: ignore
+    pred_tensor = torch.argmax(logits.float(), dim=1, keepdim=True).squeeze(0)  # type: ignore
     log.info("Inference completed in %.2f seconds", time.monotonic() - tac)
 
     # Postprocess the prediction

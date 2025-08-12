@@ -194,7 +194,8 @@ def execute_lesions_segmentation(
     # pad_widths = [(0, 0)] + divisible_pad_widths(image.shape[1:], k=32)
     # image = pad_tensor(image, pad_widths, mode="constant", value=0.0)
     log.info("Preprocessing completed in %.2f seconds", time.monotonic() - tac)
-
+    for channel in range(image.shape[0]):
+        log.info("Sum of channel %d: %s", channel, image[channel, ...].sum())
     image = image.to(device)
 
     tac = time.monotonic()
@@ -211,6 +212,7 @@ def execute_lesions_segmentation(
                 overlap=0.25,
                 mode="gaussian",
             )
+            log.info("Sum of Proba: %s", logits.softmax(1)[0, 1].sum())  # type: ignore[union-attr]
             if use_tta:
                 log.info("Using TTA")
                 tta_flips = [[1], [2], [2, 1]]
@@ -225,7 +227,8 @@ def execute_lesions_segmentation(
                         overlap=0.25,
                         mode="gaussian",
                     )
-                    logits += flip.inverse(logits_fliped)  # type: ignore
+                    log.info("Sum of Proba: %s", logits_fliped.softmax(1)[0, 1].sum())  # type: ignore[union-attr]
+                    logits += flip.inverse(logits_fliped)  # type: ignore[operator]
     if use_tta:
         logits = logits / (1 + len(tta_flips))  # type: ignore
     pred_tensor = torch.argmax(logits.float(), dim=1, keepdim=True).squeeze(0)  # type: ignore

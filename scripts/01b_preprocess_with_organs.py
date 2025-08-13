@@ -8,16 +8,18 @@ from typing import Any, Dict, List, Union
 import numpy as np
 import SimpleITK as sitk
 from dotenv import load_dotenv
-from joblib import Parallel, delayed
 from tqdm import tqdm
 
 load_dotenv(override=True)
 
+# Data directory containing the challenge data
+DATA_DIR = "/data/DEEP_PSMA_CHALLENGE_DATA/CHALLENGE_DATA"
 # nnUNet configuration paths
 NNUNET_RAW_DIR = os.environ["nnUNet_raw"]
 NNUNET_PREPROCESSED_DIR = os.environ["nnUNet_preprocessed"]
 NNUNET_RESULTS_DIR = os.environ["nnUNet_results"]
-
+# Expected number of cases in the dataset
+EXPECTED_NUM_CASES = 100
 # TotalSegmentator organs mapping classes
 ORGANS_MAPPING = {
     0: 0,  #    unspecified                   -> unspecified
@@ -150,9 +152,12 @@ def main() -> None:
     print(f"  nnUNet_results: {NNUNET_RESULTS_DIR}")
     print()
 
-    dataset_files = scan_dataset_files(args.data_dir, args.tracer_name, use_fixed_ttb=args.use_fixed_ttb)
+    dataset_files = scan_dataset_files(args.data_dir, args.tracer_name)
     dataset_name = f"Dataset{args.dataset_id}_{args.tracer_name}_PET"
+
     print(f"Found {len(dataset_files):,} cases for dataset {dataset_name!r}.")
+    if len(dataset_files) != EXPECTED_NUM_CASES:
+        print(f"WARNING! Expected {EXPECTED_NUM_CASES:,} cases, but found {len(dataset_files):,}.")
 
     print(f"Will preprocess {len(dataset_files)} in {NNUNET_RAW_DIR} directory.")
     if not args.yes:
@@ -162,8 +167,46 @@ def main() -> None:
 
     print()
     pbar = tqdm(dataset_files, total=len(dataset_files), desc=f"Preprocessing {args.tracer_name}")
-    with Parallel(n_jobs=args.num_workers) as parallel:
-        parallel(delayed(process_case)(data, dataset_name, use_pt_mask=args.pt_mask, use_sdf=args.sdf) for data in pbar)
+    for data in pbar:
+        case_name = data["name"]
+        pbar.set_postfix({"case": case_name})
+
+        # Prepare nnUNet raw data
+        ct_image = sitk.ReadImage(data["ct_path"])
+        pt_image = sitk.ReadImage(data["pt_path"])
+        ttb_image = sitk.ReadImage(data["ttb_path"])
+        totseg24_image = sitk.ReadImage(data["totseg24_path"])
+        suv_threshold = load_json(data["threshold_path"])["suv_threshold"]
+
+        # Generate the ground truth label based on the TTB and PET images
+        gt_image = generate_ground_truth(ttb_image, pt_image, suv_threshold)
+        gt_image = sitk.Cast(gt_image, sitk.sitkUInt8)
+
+        # Resample the CT and TotalSegmentator images to match the PET image
+        ct_image = sitk.Resample(ct_image, pt_image, sitk.TranslationTransform(3), sitk.sitkLinear, -1000)
+        totseg24_image = sitk.Resample(totseg24_image, pt_image, sitk.TranslationTransform(3), sitk.sitkNearestNeighbor)
+
+        organs_image = sitk.ChangeLabel(totseg24_image, ORGANS_MAPPING)
+
+        # Normalize the PET image by the SUV threshold
+        pt_image = pt_image / suv_threshold
+
+        # Save the preprocessed images
+        images_tr_dir = Path(NNUNET_RAW_DIR, dataset_name, "imagesTr")
+        labels_tr_dir = Path(NNUNET_RAW_DIR, dataset_name, "labelsTr")
+        images_tr_dir.mkdir(parents=True, exist_ok=True)
+        labels_tr_dir.mkdir(parents=True, exist_ok=True)
+
+        # Save the training images
+        # 0: PET image, 1: CT image, 2-10: organ masks
+        sitk.WriteImage(pt_image, images_tr_dir / f"{case_name}_0000.nii.gz")
+        sitk.WriteImage(ct_image, images_tr_dir / f"{case_name}_0001.nii.gz")
+        for i in [1, 2, 3, 4, 5, 6, 7, 8]:
+            organ_mask_image = sitk.Cast(organs_image == i, sitk.sitkUInt8)
+            sitk.WriteImage(organ_mask_image, images_tr_dir / f"{case_name}_{i + 1:04d}.nii.gz")
+
+        # Save the labels
+        sitk.WriteImage(gt_image, labels_tr_dir / f"{case_name}.nii.gz")
 
     # Setup nnUNet required dataset.json file
     print("Saving dataset information")
@@ -184,24 +227,12 @@ def main() -> None:
         "numTraining": len(dataset_files),
         "file_ending": ".nii.gz",
     }
-    if args.pt_mask:
-        dataset_info["channel_names"]["10"] = "noNorm"  # type: ignore[index]
-
     dataset_info_path = Path(NNUNET_RAW_DIR, dataset_name, "dataset.json")
     save_json(dataset_info, dataset_info_path)
 
     # Run nnUNet preprocessing command to preprocess the dataset
     subprocess.run(
-        [
-            "nnUNetv2_plan_and_preprocess",
-            "-d",
-            str(args.dataset_id),
-            "-c",
-            "3d_fullres",
-            "-np",
-            str(args.num_workers),
-            "--verify_dataset_integrity",
-        ],
+        ["nnUNetv2_plan_and_preprocess", "-d", str(args.dataset_id), "-c", "3d_fullres", "--verify_dataset_integrity"],
         check=True,
     )
     print(f"Preprocessing completed for dataset {dataset_name}.")
@@ -212,7 +243,7 @@ def parse_args() -> Namespace:
     parser.add_argument(
         "--data-dir",
         type=str,
-        required=True,
+        default=DATA_DIR,
         help="Path to the directory containing the DeepPSMA dataset.",
     )
     parser.add_argument(
@@ -226,23 +257,8 @@ def parse_args() -> Namespace:
         "--dataset-id",
         type=int,
         required=True,
-        help="nnUNet dataset ID corresponding to the tracer (e.g. 801 for PSMA, 802 for FDG).",
-    )
-    parser.add_argument(
-        "--sdf",
-        action="store_true",
-        help="Use Signed Distance Transform (SDT) on the organs masks instead of binary masks.",
-    )
-    parser.add_argument(
-        "--pt-mask",
-        action="store_true",
-        help="Add the PT > SUV threshold mask as a channel in the input (PT, CT, PT > SUV threshold, ...organs).",
-    )
-    parser.add_argument(
-        "--num-workers",
-        type=int,
-        default=10,
-        help="Number of workers to use for parallel processing.",
+        choices=[801, 802],
+        help="nnUNet dataset ID corresponding to the tracer.",
     )
     parser.add_argument(
         "-y",
@@ -250,81 +266,7 @@ def parse_args() -> Namespace:
         action="store_true",
         help="Automatically answer 'yes' to prompts.",
     )
-    parser.add_argument(
-        "--use-fixed-ttb",
-        action="store_true",
-        help="Use the fixed TTB images instead of the original ones.",
-    )
     return parser.parse_args()
-
-
-def process_case(
-    data: Dict[str, Any],
-    dataset_name: str,
-    use_pt_mask: bool = False,
-    use_sdf: bool = False,
-) -> None:
-    case_name = data["name"]
-
-    # Prepare nnUNet raw data
-    ct_image = sitk.ReadImage(data["ct_path"])
-    pt_image = sitk.ReadImage(data["pt_path"])
-    ttb_image = sitk.ReadImage(data["ttb_path"])
-    totseg24_image = sitk.ReadImage(data["totseg24_path"])
-    suv_threshold = load_json(data["threshold_path"])["suv_threshold"]
-
-    # Generate the ground truth label based on the TTB and PET images
-    gt_image = generate_ground_truth(ttb_image, pt_image, suv_threshold)
-    gt_image = sitk.Cast(gt_image, sitk.sitkUInt8)
-
-    # Resample the CT and TotalSegmentator images to match the PET image
-    ct_image = sitk.Resample(ct_image, pt_image, sitk.TranslationTransform(3), sitk.sitkLinear, -1000)
-    totseg24_image = sitk.Resample(totseg24_image, pt_image, sitk.TranslationTransform(3), sitk.sitkNearestNeighbor)
-    organs_image = sitk.ChangeLabel(totseg24_image, ORGANS_MAPPING)
-
-    # Normalize the PET image by the SUV threshold
-    pt_image = pt_image / suv_threshold
-
-    # Save the preprocessed images
-    images_tr_dir = Path(NNUNET_RAW_DIR, dataset_name, "imagesTr")
-    labels_tr_dir = Path(NNUNET_RAW_DIR, dataset_name, "labelsTr")
-    images_tr_dir.mkdir(parents=True, exist_ok=True)
-    labels_tr_dir.mkdir(parents=True, exist_ok=True)
-
-    # Save the training images
-    # 0: PET image, 1: CT image, 2-10: organ masks
-    sitk.WriteImage(pt_image, images_tr_dir / f"{case_name}_0000.nii.gz")
-    sitk.WriteImage(ct_image, images_tr_dir / f"{case_name}_0001.nii.gz")
-
-    if use_pt_mask:
-        pt_mask_image = sitk.Cast(pt_image >= 1.0, sitk.sitkUInt8)
-        sitk.WriteImage(pt_mask_image, images_tr_dir / f"{case_name}_0002.nii.gz")
-
-    start_idx = 3 if use_pt_mask else 2
-    for channel_idx, organ_id in enumerate([1, 2, 3, 4, 5, 6, 7, 8], start=start_idx):
-        organ_mask_image = sitk.Cast(organs_image == organ_id, sitk.sitkUInt8)
-        if use_sdf:
-            # Use "soft" SDF to avoid sharp edges in the binary mask
-            organ_mask_image = sitk.SignedMaurerDistanceMap(
-                organ_mask_image,
-                insideIsPositive=True,
-                squaredDistance=False,
-                useImageSpacing=True,
-            )
-            # Normalize the SDF to [0, 1] using a sigmoid function
-            # We parametrize the sigmoid 𝜎 with τ = w / 4.394 because:
-            # - At x = +2.197, the sigmoid 𝜎(x) ≈ 0.9.
-            # - At x = -2.197, the sigmoid 𝜎(x) ≈ 0.1.
-            # -> The total distance in x-space between [0.1, 0.9] is therefore about ≈ 4.394,
-            # That's why τ = w / 4.394 provides a sigmoid that smoothly transitions between 0.1 and 0.9.
-            w_mm = 10.0
-            tau = w_mm / 4.394
-            organ_mask_image = 1 / (1 + sitk.Exp(-organ_mask_image / tau))
-
-        sitk.WriteImage(organ_mask_image, images_tr_dir / f"{case_name}_{channel_idx:04d}.nii.gz")
-
-    # Save the labels
-    sitk.WriteImage(gt_image, labels_tr_dir / f"{case_name}.nii.gz")
 
 
 def generate_ground_truth(ttb_image: sitk.Image, pt_image: sitk.Image, suv_threshold: float) -> sitk.Image:
@@ -348,21 +290,20 @@ def generate_ground_truth(ttb_image: sitk.Image, pt_image: sitk.Image, suv_thres
     return ttb_normal_label
 
 
-def scan_dataset_files(data_dir: str, tracer_name: str, use_fixed_ttb: bool = False) -> List[Dict[str, Any]]:
+def scan_dataset_files(data_dir: str, tracer_name: str) -> List[Dict[str, Any]]:
     """Scan the data directory to retrieve paths for CT, PET etc. associated to the specified tracer."""
     dataset_files = []
     for case_path in sorted(Path(data_dir).iterdir()):
         if not case_path.is_dir():
             continue
 
-        ttb_filename = "TTB_fixed.nii.gz" if use_fixed_ttb else "TTB.nii.gz"
         data = {
             "name": case_path.name,
             "tracer_name": tracer_name,
             "ct_path": case_path / tracer_name / "CT.nii.gz",
             "pt_path": case_path / tracer_name / "PET.nii.gz",
             "totseg24_path": case_path / tracer_name / "totseg_24.nii.gz",
-            "ttb_path": case_path / tracer_name / ttb_filename,
+            "ttb_path": case_path / tracer_name / "TTB.nii.gz",
             "threshold_path": case_path / tracer_name / "threshold.json",
         }
         dataset_files.append(data)

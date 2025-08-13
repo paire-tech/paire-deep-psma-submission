@@ -27,7 +27,7 @@ def main() -> None:
 
     print(f"Starting nnUNet training for dataset ID {args.dataset_id} with fold {args.fold}!\n")
     subprocess.run(
-        ["nnUNetv2_train", str(args.dataset_id), "3d_fullres", str(args.fold)],
+        ["nnUNetv2_train", str(args.dataset_id), "3d_fullres", str(args.fold), "-device", args.device],
         check=True,
     )
 
@@ -45,6 +45,13 @@ def parse_args() -> Namespace:
         type=int,
         default=0,
         help="Fold number for cross-validation (default: 0).",
+    )
+    parser.add_argument(
+        "--device",
+        type=str,
+        default="cuda",
+        choices=["cuda", "cpu", "mps"],
+        help="Device to use for training (default: 'cuda').",
     )
     parser.add_argument(
         "-y",

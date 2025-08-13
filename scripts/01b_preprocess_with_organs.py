@@ -3,7 +3,7 @@ import os
 import subprocess
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union
 
 import numpy as np
 import SimpleITK as sitk
@@ -18,6 +18,8 @@ DATA_DIR = "/data/DEEP_PSMA_CHALLENGE_DATA/CHALLENGE_DATA"
 NNUNET_RAW_DIR = os.environ["nnUNet_raw"]
 NNUNET_PREPROCESSED_DIR = os.environ["nnUNet_preprocessed"]
 NNUNET_RESULTS_DIR = os.environ["nnUNet_results"]
+# Expected number of cases in the dataset
+EXPECTED_NUM_CASES = 100
 # TotalSegmentator organs mapping classes
 ORGANS_MAPPING = {
     0: 0,  #    unspecified                   -> unspecified
@@ -141,7 +143,7 @@ ORGANS_MAPPING = {
 }
 
 
-def main():
+def main() -> None:
     args = parse_args()
     # Show nnUNet configuration paths
     print("Using nnUNet configuration:")
@@ -154,6 +156,9 @@ def main():
     dataset_name = f"Dataset{args.dataset_id}_{args.tracer_name}_PET"
 
     print(f"Found {len(dataset_files):,} cases for dataset {dataset_name!r}.")
+    if len(dataset_files) != EXPECTED_NUM_CASES:
+        print(f"WARNING! Expected {EXPECTED_NUM_CASES:,} cases, but found {len(dataset_files):,}.")
+
     print(f"Will preprocess {len(dataset_files)} in {NNUNET_RAW_DIR} directory.")
     if not args.yes:
         if input("Do you want to continue? (y/N): ").lower() != "y":
@@ -264,7 +269,7 @@ def parse_args() -> Namespace:
     return parser.parse_args()
 
 
-def generate_ground_truth(ttb_image: sitk.Image, pt_image: sitk.Image, suv_threshold: float):
+def generate_ground_truth(ttb_image: sitk.Image, pt_image: sitk.Image, suv_threshold: float) -> sitk.Image:
     """Generate ground truth labels from instance segmentation TTB image, PET image and the SUV threshold.
     Generated labels:
     - 0 for background
@@ -311,7 +316,7 @@ def load_json(file_path: str) -> Dict[str, Any]:
         return json.load(f)
 
 
-def save_json(data: Dict[str, Any], file_path: str):
+def save_json(data: Dict[str, Any], file_path: Union[str, Path]) -> None:
     with open(file_path, "w") as f:
         json.dump(data, f, indent=4)
 

@@ -33,10 +33,10 @@ def main() -> None:
     print(f"Loaded {len(df)} entries from {input_csv}")
 
     # Resolve inputs / outputs paths
-    df["psma_pt_ttb_path"] = df["psma_pt_ttb_path"].apply(lambda path: input_dir / path if path else None)
-    df["fdg_pt_ttb_path"] = df["fdg_pt_ttb_path"].apply(lambda path: input_dir / path if path else None)
-    df["psma_pred_path"] = df["psma_pred_path"].apply(lambda path: output_dir / path if path else None)
-    df["fdg_pred_path"] = df["fdg_pred_path"].apply(lambda path: output_dir / path if path else None)
+    df["psma_pt_ttb_path"] = df["psma_pt_ttb_path"].apply(lambda path: Path(args.input_dir, path) if path else None)
+    df["fdg_pt_ttb_path"] = df["fdg_pt_ttb_path"].apply(lambda path: Path(args.input_dir, path) if path else None)
+    df["psma_pred_path"] = df["psma_pred_path"].apply(lambda path: Path(args.output_dir, path) if path else None)
+    df["fdg_pred_path"] = df["fdg_pred_path"].apply(lambda path: Path(args.output_dir, path) if path else None)
 
     results = []
     for _, row in track(df.iterrows(), total=len(df), description="Evaluating..."):
@@ -47,11 +47,11 @@ def main() -> None:
 
         print(f"[PSMA] Evaluating {psma_gt_path} and {psma_pred_path}")
         psma_scores = compute_scores(psma_gt_path, psma_pred_path) if (psma_gt_path and psma_pred_path) else {}
-        print(f"       Scores: \t {' | '.join(f'{k}: {v:.4f}' for k, v in psma_scores.items())}")
+        print(f"[PSMA] Scores: \t {' | '.join(f'{k}: {v:.4f}' for k, v in psma_scores.items())}")
 
-        print(f"[FDG ] Evaluating {fdg_gt_path} and {fdg_pred_path}")
+        print(f"[PSMA] Evaluating {fdg_gt_path} and {fdg_pred_path}")
         fdg_scores = compute_scores(fdg_gt_path, fdg_pred_path) if (fdg_gt_path and fdg_pred_path) else {}
-        print(f"       Scores: \t {' | '.join(f'{k}: {v:.4f}' for k, v in fdg_scores.items())}")
+        print(f"[FDG ] Scores: \t {' | '.join(f'{k}: {v:.4f}' for k, v in fdg_scores.items())}")
 
         result = {
             **{f"psma_{k}": v for k, v in psma_scores.items()},
@@ -72,6 +72,37 @@ def main() -> None:
     for row in df_scores.values:
         table.add_row(*[f"{value:.4f}" if isinstance(value, float) else str(value) for value in row])
     print(table)
+
+
+def parse_args() -> Namespace:
+    parser = ArgumentParser(description="Evaluate segmentation results against ground truth labels.")
+    parser.add_argument(
+        "-i",
+        "--input-dir",
+        type=str,
+        default=INPUT_DIR,
+        help="Directory containing the ground truth labels.",
+    )
+    parser.add_argument(
+        "-o",
+        "--output-dir",
+        type=str,
+        default=OUTPUT_DIR,
+        help="Directory containing the predicted segmentation results.",
+    )
+    parser.add_argument(
+        "--input-csv",
+        type=str,
+        required=True,
+        help="Path of the CSV format.",
+    )
+    parser.add_argument(
+        "--output-csv",
+        type=str,
+        required=True,
+        help="Path of the output CSV file.",
+    )
+    return parser.parse_args()
 
 
 def label_mask(mask: np.ndarray) -> np.ndarray:

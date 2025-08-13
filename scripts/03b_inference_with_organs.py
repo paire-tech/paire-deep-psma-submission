@@ -181,7 +181,7 @@ def main() -> None:
             fold=args.fold,
         )
 
-        output_path = Path(args.output_dir, str(row["id"]), args.tracer_name.upper(), "PREDS.nii.gz")
+        output_path = Path(args.output_dir, str(row["id"]), args.tracer_name.upper(), "PRED.nii.gz")
         output_path.parent.mkdir(parents=True, exist_ok=True)
         sitk.WriteImage(pred_image, output_path)
         print(f"-> Saved prediction to: {output_path}")

@@ -851,36 +851,4 @@ copy-paste the below in your `.vscode/settings.json` file.
 ```
 
 </details>
-
-<details>
-<summary><b>How to setup Latex and R Markdown?</b></summary>
-
-We used Latex and R Markdown to write the report for the DEEP PSMA Grand Challenge.
-
-1. Download R, R Studio
-2. Download Pandoc
-3. Download TextLive (full)
-
-For example on Ubuntu, you can install the following packages:
-
-```bash
-# Install Latex
-sudo apt-get update
-sudo apt-get install texlive-full  # install latex and its packages
-latex --version
-# pdfTeX 3.141592653-2.6-1.40.22 (TeX Live 2022/dev/Debian)
-
-# To setup R Markdown:
-sudo apt-get update
-sudo apt install r-base r-base-dev
-R --version
-# 4.1.2
-
-# Install Pandoc
-sudo apt-get install pandoc  # install pandoc for markdown conversion
-# or: conda install -c conda-forge pandoc
-pandoc --version
-# 2.9.2.1
-```
-
-</details>
+````

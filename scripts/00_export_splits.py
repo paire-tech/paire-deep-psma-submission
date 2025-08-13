@@ -1,49 +1,20 @@
 import json
-import os
-import shutil
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
 
 import pandas as pd
-from dotenv import load_dotenv
-
-load_dotenv(override=True)
-
-# nnUNet configuration paths
-NNUNET_RAW_DIR = os.environ["nnUNet_raw"]
-NNUNET_PREPROCESSED_DIR = os.environ["nnUNet_preprocessed"]
-NNUNET_RESULTS_DIR = os.environ["nnUNet_results"]
-# Specify the splits_final.json file for reproducibility
-SCRIPTS_DIR = Path(__file__).parent.as_posix()
-SPLITS_FINAL_PATH = Path(SCRIPTS_DIR, "splits_final.json").as_posix()
 
 
 def main() -> None:
     args = parse_args()
-    print("Using nnUNet configuration:")
-    print(f"  nnUNet_raw: {NNUNET_RAW_DIR}")
-    print(f"  nnUNet_preprocessed: {NNUNET_PREPROCESSED_DIR}")
-    print(f"  nnUNet_results: {NNUNET_RESULTS_DIR}")
-
-    if not args.yes:
-        if input("\nDo you want to continue? (y/N): ").lower() != "y":
-            print("Exiting without preprocessing.")
-            return
-
-    if not Path(SPLITS_FINAL_PATH).exists():
-        print(f"ERROR! {SPLITS_FINAL_PATH} does not exist. Please run nnUNet training first.")
+    if not Path(args.splits_path).exists():
+        print(f"ERROR! {args.splits_path} does not exist.")
         return
 
-    dataset_name = f"Dataset{args.dataset_id}_{args.tracer_name}_PET"
-    dataset_dir = Path(NNUNET_PREPROCESSED_DIR, dataset_name)
-
-    print("\nExporting cross-validation splits_final.json for nnUNet!")
-    splits_final_path = dataset_dir / "splits_final.json"
-    splits_final_path.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy(SPLITS_FINAL_PATH, splits_final_path)
-
     print("\nExporting cross-validation splits for inference in CSV format!")
-    splits_data = load_json(splits_final_path)
+    Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+
+    splits_data = load_json(args.splits_path)
     for fold, fold_data in enumerate(splits_data):
         items = []
         for split, case_names in fold_data.items():
@@ -65,31 +36,29 @@ def main() -> None:
                 items.append(item)
 
         df_fold = pd.DataFrame(items)
-        fold_path = dataset_dir / f"{args.tracer_name.lower()}_val_fold{fold}.csv"
-        print(f"Writing fold {fold} to: {fold_path}")
-        df_fold.to_csv(fold_path, index=False)
+
+        fold_path = Path(args.output_dir, f"val_fold{fold}.csv")
+        print(f"-> Writing val fold {fold} to: {fold_path}")
+        df_fold[df_fold["split"] == "val"].to_csv(fold_path, index=False)
+
+        fold_path = Path(args.output_dir, f"train_fold{fold}.csv")
+        print(f"-> Writing train fold {fold} to: {fold_path}")
+        df_fold[df_fold["split"] == "train"].to_csv(fold_path, index=False)
 
 
 def parse_args() -> Namespace:
     parser = ArgumentParser(description="Export validation splits for nnUNet training in CSV format.")
     parser.add_argument(
-        "--tracer-name",
+        "--splits-path",
         type=str,
         required=True,
-        choices=["PSMA", "FDG"],
-        help="Name of the tracer used for training (e.g., PSMA, FDG).",
+        help="Path to the splits_final.json file.",
     )
     parser.add_argument(
-        "--dataset-id",
-        type=int,
+        "--output-dir",
+        type=str,
         required=True,
-        help="ID of the dataset to export splits for (e.g., 801 for PSMA, 802 for FDG).",
-    )
-    parser.add_argument(
-        "-y",
-        "--yes",
-        action="store_true",
-        help="Automatically answer 'yes' to prompts (use with caution).",
+        help="Directory to save the exported splits CSV files.",
     )
     return parser.parse_args()
 
@@ -97,3 +66,7 @@ def parse_args() -> Namespace:
 def load_json(file_path: Path) -> dict:
     with open(file_path, "r") as file:
         return json.load(file)
+
+
+if __name__ == "__main__":
+    main()

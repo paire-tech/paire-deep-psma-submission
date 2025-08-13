@@ -1,5 +1,6 @@
 import logging
 import subprocess
+import time
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -102,3 +103,83 @@ def expand_contract_label(label: sitk.Image, distance: float = 5.0) -> sitk.Imag
     new_label = sitk.GetImageFromArray(new_label_ar)
     new_label.CopyInformation(label)
     return new_label
+
+
+def refine_fdg_prediction_from_psma_prediction(
+    fdg_pred_image: sitk.Image,
+    fdg_totseg_image: sitk.Image,
+    psma_pred_image: sitk.Image,
+    psma_totseg_image: sitk.Image,
+) -> sitk.Image:
+    """Removes FDG lesions (from connected components) if no corresponding lesion is present
+    in PSMA for the same anatomical class (based on TotalSegmentator labels).
+    """
+    tic = time.monotonic()
+    log.info("Starting final postprocessing")
+
+    # Ensure the organs are in the same space as the predictions
+    fdg_totseg_image = sitk.Resample(
+        fdg_totseg_image,
+        fdg_pred_image,
+        sitk.TranslationTransform(3),
+        sitk.sitkNearestNeighbor,
+        0,
+    )
+    psma_totseg_image = sitk.Resample(
+        psma_totseg_image,
+        psma_pred_image,
+        sitk.TranslationTransform(3),
+        sitk.sitkNearestNeighbor,
+        0,
+    )
+
+    fdg_pred_image = sitk.ConnectedComponent(fdg_pred_image)
+    fdg_pred_array = sitk.GetArrayFromImage(fdg_pred_image)
+    fdg_num_lesions = int(fdg_pred_array.max())
+    fdg_totseg_array = sitk.GetArrayFromImage(fdg_totseg_image)
+
+    psma_pred_array = sitk.GetArrayFromImage(psma_pred_image) > 0
+    psma_totseg_array = sitk.GetArrayFromImage(psma_totseg_image)
+    psma_totseg_labels = np.unique(psma_totseg_array[psma_pred_array])
+
+    # Used to log some statistics about the FDG post-processing
+    stats = []
+    # Allocate memory for post-processed FDG prediction
+    fdg_out_array = np.zeros_like(fdg_pred_array, dtype=np.uint8)
+
+    for fdg_lesion_id in range(1, fdg_num_lesions + 1):
+        fdg_lesion_mask = fdg_pred_array == fdg_lesion_id
+        if not fdg_lesion_mask.any():
+            continue
+
+        # Get class labels from TotalSegmentator for this lesion
+        fdg_totseg_labels = np.unique(fdg_totseg_array[fdg_lesion_mask])
+
+        kept = any(label in psma_totseg_labels for label in fdg_totseg_labels if label != 0)
+        # the idea is to remove lesions that are only in one total segmentators classes
+        # that do not match any totalsegmentator of psma
+        if kept:
+            fdg_out_array[fdg_lesion_mask] = 1
+
+        stats.append(
+            {
+                "lesion_id": fdg_lesion_id,
+                "lesion_kept": kept,
+                "lesion_volume": np.sum(fdg_lesion_mask) * np.prod(fdg_pred_image.GetSpacing()),
+            }
+        )
+
+    volume_removed = sum(stat["lesion_volume"] for stat in stats if not stat["lesion_kept"])
+    num_removed_lesions = sum(1 for stat in stats if not stat["lesion_kept"])
+    log.info(
+        "FDG post-processing: %d lesions out of %d were removed (volume of %.2f mm3)",
+        num_removed_lesions,
+        fdg_num_lesions,
+        volume_removed,
+    )
+
+    fdg_out_image = sitk.GetImageFromArray(fdg_out_array.astype(np.uint8))
+    fdg_out_image.CopyInformation(fdg_pred_image)
+
+    log.info("Final postprocessing completed in %.2f seconds", time.monotonic() - tic)
+    return fdg_out_image

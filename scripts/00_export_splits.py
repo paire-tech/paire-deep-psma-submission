@@ -20,6 +20,9 @@ def main() -> None:
         for split, case_names in fold_data.items():
             for case_name in case_names:
                 item = {
+                    "id": case_name,
+                    "split": split,
+                    "fold": fold,
                     "psma_ct_path": f"{case_name}/PSMA/CT.nii.gz",
                     "psma_pt_path": f"{case_name}/PSMA/PET.nii.gz",
                     "psma_pt_ttb_path": f"{case_name}/PSMA/TTB.nii.gz",
@@ -30,8 +33,6 @@ def main() -> None:
                     "fdg_pt_ttb_path": f"{case_name}/FDG/TTB.nii.gz",
                     "fdg_pt_suv_threshold": f"{case_name}/FDG/threshold.json",
                     "fdg_organ_segmentation_path": f"{case_name}/FDG/totseg_24.nii.gz",
-                    "split": split,
-                    "fold": fold,
                 }
                 items.append(item)
 

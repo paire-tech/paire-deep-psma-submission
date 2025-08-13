@@ -185,7 +185,6 @@ def main() -> None:
         # Resample the CT and TotalSegmentator images to match the PET image
         ct_image = sitk.Resample(ct_image, pt_image, sitk.TranslationTransform(3), sitk.sitkLinear, -1000)
         totseg24_image = sitk.Resample(totseg24_image, pt_image, sitk.TranslationTransform(3), sitk.sitkNearestNeighbor)
-
         organs_image = sitk.ChangeLabel(totseg24_image, ORGANS_MAPPING)
 
         # Normalize the PET image by the SUV threshold

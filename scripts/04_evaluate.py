@@ -5,6 +5,7 @@ import os
 from argparse import ArgumentParser, Namespace
 from functools import partial
 from pathlib import Path
+from typing import Union
 
 import numpy as np
 import pandas as pd
@@ -39,18 +40,18 @@ def main() -> None:
 
     results = []
     for _, row in track(df.iterrows(), total=len(df), description="Evaluating..."):
-        psma_gt_path = row["psma_pt_ttb_path"]
-        psma_pred_path = row["psma_pred_path"]
-        fdg_gt_path = row["fdg_pt_ttb_path"]
-        fdg_pred_path = row["fdg_pred_path"]
+        psma_gt_path = Path(row["psma_pt_ttb_path"]).resolve()
+        psma_pred_path = Path(row["psma_pred_path"]).resolve()
+        fdg_gt_path = Path(row["fdg_pt_ttb_path"]).resolve()
+        fdg_pred_path = Path(row["fdg_pred_path"]).resolve()
 
         print(f"[PSMA] Evaluating {psma_gt_path} and {psma_pred_path}")
         psma_scores = compute_scores(psma_gt_path, psma_pred_path) if (psma_gt_path and psma_pred_path) else {}
-        print(f"[PSMA] Scores: \t {' | '.join(f'{k}: {v:.4f}' for k, v in psma_scores.items())}")
+        print(f"       Scores: \t {' | '.join(f'{k}: {v:.4f}' for k, v in psma_scores.items())}")
 
-        print(f"[PSMA] Evaluating {fdg_gt_path} and {fdg_pred_path}")
+        print(f"[FDG ] Evaluating {fdg_gt_path} and {fdg_pred_path}")
         fdg_scores = compute_scores(fdg_gt_path, fdg_pred_path) if (fdg_gt_path and fdg_pred_path) else {}
-        print(f"[FDG ] Scores: \t {' | '.join(f'{k}: {v:.4f}' for k, v in fdg_scores.items())}")
+        print(f"       Scores: \t {' | '.join(f'{k}: {v:.4f}' for k, v in fdg_scores.items())}")
 
         result = {
             **{f"psma_{k}": v for k, v in psma_scores.items()},
@@ -162,14 +163,14 @@ def surface_dice_score(gt_image: sitk.Image, pred_image: sitk.Image) -> float:
     return surface_dice
 
 
-def read_label(label_path: str) -> tuple[np.ndarray, float]:
+def read_label(label_path: Union[str, Path]) -> tuple[np.ndarray, float]:
     label = sitk.ReadImage(label_path)
     ar = sitk.GetArrayFromImage(label)
     voxel_volume = np.prod(np.array(label.GetSpacing())) / 1000.0
     return ar, voxel_volume
 
 
-def compute_scores(gt_path: str, pred_path: str) -> dict[str, float]:
+def compute_scores(gt_path: Union[str, Path], pred_path: Union[str, Path]) -> dict[str, float]:
     gt_ar, voxel_volume = read_label(gt_path)
     pred_ar, _ = read_label(pred_path)
     dice = dice_score(gt_ar, pred_ar)

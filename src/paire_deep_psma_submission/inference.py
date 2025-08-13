@@ -6,6 +6,7 @@ from tempfile import TemporaryDirectory
 
 import numpy as np
 import SimpleITK as sitk
+from typing_extensions import deprecated
 
 log = logging.getLogger(__name__)
 
@@ -103,6 +104,7 @@ def expand_contract_label(label: sitk.Image, distance: float = 5.0) -> sitk.Imag
     return new_label
 
 
+@deprecated("This function is deprecated as it does not improve the performances.", category=FutureWarning)
 def refine_fdg_prediction_from_psma_prediction(
     fdg_pred_image: sitk.Image,
     fdg_totseg_image: sitk.Image,

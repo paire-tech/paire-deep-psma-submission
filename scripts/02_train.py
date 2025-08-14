@@ -26,10 +26,19 @@ def main() -> None:
             return
 
     print(f"Starting nnUNet training for dataset ID {args.dataset_id} with fold {args.fold}!\n")
-    subprocess.run(
-        ["nnUNetv2_train", str(args.dataset_id), "3d_fullres", str(args.fold), "-device", args.device, "-p", args.plan],
-        check=True,
-    )
+    cmd_args = [
+        "nnUNetv2_train",
+        str(args.dataset_id),
+        "3d_fullres",
+        str(args.fold),
+        "-device",
+        args.device,
+        "-p",
+        args.plan,
+    ]
+    if args.resume:
+        cmd_args.append("--c")
+    subprocess.run(cmd_args, check=True)
 
 
 def parse_args() -> Namespace:
@@ -58,6 +67,12 @@ def parse_args() -> Namespace:
         type=str,
         default="nnUNetPlans",
         help="The plan to use for training (e.g., 'nnUNetResEncUNetPlans').",
+    )
+    parser.add_argument(
+        "-r",
+        "--resume",
+        action="store_true",
+        help="Continue training from the last checkpoint if available.",
     )
     parser.add_argument(
         "-y",

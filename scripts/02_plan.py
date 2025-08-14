@@ -26,18 +26,9 @@ def main() -> None:
             print("Exiting without preprocessing.")
             return
 
+    # https://github.com/MIC-DKFZ/nnUNet/blob/master/documentation/resenc_presets.md#how-to-use-the-new-presets
     subprocess.run(
-        [
-            "nnUNetv2_plan_and_preprocess",
-            "-d",
-            str(args.dataset_id),
-            "-c",
-            "3d_fullres",
-            "--verify_dataset_integrity",
-            # https://github.com/MIC-DKFZ/nnUNet/blob/master/documentation/resenc_presets.md#how-to-use-the-new-presets
-            # "-pl",
-            # "nnUNetPlannerResEncL",
-        ],
+        ["nnUNetv2_plan_experiment", "-d", str(args.dataset_id), "-pl", args.plan],
         check=True,
     )
 
@@ -49,6 +40,12 @@ def parse_args() -> Namespace:
         type=int,
         required=True,
         help="nnUNet dataset ID corresponding to the tracer (e.g. 801 for PSMA, 802 for FDG).",
+    )
+    parser.add_argument(
+        "--plan",
+        type=str,
+        default="nnUNetPlans",
+        help="The plan to use for training (e.g., 'nnUNetPlannerResEncL').",
     )
     parser.add_argument(
         "-y",

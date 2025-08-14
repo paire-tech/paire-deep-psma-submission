@@ -93,7 +93,16 @@ def main() -> None:
 
     # Run nnUNet preprocessing command to preprocess the dataset
     subprocess.run(
-        ["nnUNetv2_plan_and_preprocess", "-d", str(args.dataset_id), "-c", "3d_fullres", "--verify_dataset_integrity"],
+        [
+            "nnUNetv2_plan_and_preprocess",
+            "-d",
+            str(args.dataset_id),
+            "-c",
+            "3d_fullres",
+            "--verify_dataset_integrity",
+            "-pl",
+            "nnUNetPlannerResEncL",
+        ],
         check=True,
     )
     print(f"Preprocessing completed for dataset {dataset_name}.")

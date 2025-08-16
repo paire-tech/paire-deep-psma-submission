@@ -74,8 +74,9 @@ def main(
         psma_pred_image = execute_lesions_segmentation(
             pt_image=data["psma_pt_image"],
             ct_image=data["psma_ct_image"],
+            organs_image=data["psma_organ_segmentation_image"],
             suv_threshold=data["psma_pt_suv_threshold"],
-            tracer_name="PSMA",
+            dataset_id=901,
         )
 
         pred_path = Path(data["psma_pred_path"])
@@ -88,8 +89,9 @@ def main(
         fdg_pred_image = execute_lesions_segmentation(
             pt_image=data["fdg_pt_image"],
             ct_image=data["fdg_ct_image"],
+            organs_image=data["fdg_organ_segmentation_image"],
             suv_threshold=data["fdg_pt_suv_threshold"],
-            tracer_name="FDG",
+            dataset_id=902,
         )
 
         # NOTE: It appears this does not improve the performances

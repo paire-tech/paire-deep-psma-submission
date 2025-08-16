@@ -53,17 +53,25 @@ def execute_lesions_segmentation(
                 DATASET_MAPPING[tracer_name],
                 "-c",
                 "3d_fullres",
+                "-p",
+                "nnUNetResEncUNetLPlans",
                 "-f",
                 str(fold),
                 "-npp",
                 "0",
                 "-nps",
                 "0",
+                "--save_probabilities",
             ],
             check=True,
         )
 
         pred_image = sitk.ReadImage(output_dir / "deep-psma.nii.gz")
+    if tracer_name == "FDG":
+        pred_image = pred_image > .33
+    elif tracer_name == "PSMA":
+        pred_image = pred_image > .5
+        
 
     pt_array = sitk.GetArrayFromImage(pt_image)
     tar = (pt_array >= 1.0).astype("int8")
@@ -85,7 +93,7 @@ def execute_lesions_segmentation(
     output_label = sitk.GetImageFromArray(output_ar)
     output_label.CopyInformation(pred_image)
     output_label = sitk.Resample(output_label, pt_image, sitk.TranslationTransform(3), sitk.sitkNearestNeighbor, 0)
-
+    
     return output_label
 
 

@@ -152,7 +152,7 @@ def main() -> None:
     print(f"  nnUNet_results: {NNUNET_RESULTS_DIR}")
     print()
 
-    dataset_files = scan_dataset_files(args.data_dir, args.tracer_name)
+    dataset_files = scan_dataset_files(args.data_dir, args.tracer_name, use_fixed_ttb=args.use_fixed_ttb)
     dataset_name = f"Dataset{args.dataset_id}_{args.tracer_name}_PET"
 
     print(f"Found {len(dataset_files):,} cases for dataset {dataset_name!r}.")
@@ -256,14 +256,18 @@ def parse_args() -> Namespace:
         "--dataset-id",
         type=int,
         required=True,
-        choices=[801, 802],
-        help="nnUNet dataset ID corresponding to the tracer.",
+        help="nnUNet dataset ID corresponding to the tracer (e.g. 801 for PSMA, 802 for FDG).",
     )
     parser.add_argument(
         "-y",
         "--yes",
         action="store_true",
         help="Automatically answer 'yes' to prompts.",
+    )
+    parser.add_argument(
+        "--use-fixed-ttb",
+        action="store_true",
+        help="Use the fixed TTB images instead of the original ones.",
     )
     return parser.parse_args()
 
@@ -289,20 +293,21 @@ def generate_ground_truth(ttb_image: sitk.Image, pt_image: sitk.Image, suv_thres
     return ttb_normal_label
 
 
-def scan_dataset_files(data_dir: str, tracer_name: str) -> List[Dict[str, Any]]:
+def scan_dataset_files(data_dir: str, tracer_name: str, use_fixed_ttb: bool = False) -> List[Dict[str, Any]]:
     """Scan the data directory to retrieve paths for CT, PET etc. associated to the specified tracer."""
     dataset_files = []
     for case_path in sorted(Path(data_dir).iterdir()):
         if not case_path.is_dir():
             continue
 
+        ttb_filename = "TTB_fixed.nii.gz" if use_fixed_ttb else "TTB.nii.gz"
         data = {
             "name": case_path.name,
             "tracer_name": tracer_name,
             "ct_path": case_path / tracer_name / "CT.nii.gz",
             "pt_path": case_path / tracer_name / "PET.nii.gz",
             "totseg24_path": case_path / tracer_name / "totseg_24.nii.gz",
-            "ttb_path": case_path / tracer_name / "TTB.nii.gz",
+            "ttb_path": case_path / tracer_name / ttb_filename,
             "threshold_path": case_path / tracer_name / "threshold.json",
         }
         dataset_files.append(data)

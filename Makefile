@@ -56,7 +56,6 @@ run: ## Run the production docker image
 	docker run --rm -it \
 		--user $(shell id -u):$(shell id -g) \
 		--gpus all \
-		-v $(WEIGHTS_DIR):/opt/ml/model/:ro \
 		-v $(INPUT_DIR):/input/:ro \
 		-v $(OUTPUT_DIR):/output/ \
 		-e INPUT_FORMAT=$(INPUT_FORMAT) \

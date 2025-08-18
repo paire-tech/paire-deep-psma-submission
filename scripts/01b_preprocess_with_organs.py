@@ -223,7 +223,7 @@ def main() -> None:
                 # - At x = -2.197, the sigmoid 𝜎(x) ≈ 0.1.
                 # -> The total distance in x-space between [0.1, 0.9] is therefore about ≈ 4.394,
                 # That's why τ = w / 4.394 provides a sigmoid that smoothly transitions between 0.1 and 0.9.
-                w_mm = 10.0
+                w_mm = 100.0
                 tau = w_mm / 4.394
                 organ_mask_image = 1 / (1 + sitk.Exp(-organ_mask_image / tau))
 

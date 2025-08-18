@@ -6,10 +6,8 @@ from tempfile import TemporaryDirectory
 
 import numpy as np
 import SimpleITK as sitk
-from typing_extensions import deprecated
 
 log = logging.getLogger(__name__)
-
 
 # TotalSegmentator organs mapping classes
 ORGANS_MAPPING = {
@@ -192,18 +190,18 @@ def execute_lesions_segmentation(
             check=True,
         )
 
-        pred_image = sitk.ReadImage(output_dir / "deep-psma.nii.gz")
-    if tracer_name == "FDG":
-        pred_image = pred_image > .33
-    elif tracer_name == "PSMA":
-        pred_image = pred_image > .5
-        
+    pred_image = sitk.ReadImage(output_dir / "deep-psma.nii.gz")
 
     pt_array = sitk.GetArrayFromImage(pt_image)
     tar = (pt_array >= 1.0).astype("int8")
 
-    pred_ttb_ar = (sitk.GetArrayFromImage(pred_image) == 1).astype("int8")
-    pred_norm_ar = (sitk.GetArrayFromImage(pred_image) == 2).astype("int8")
+    if tracer_name == "FDG":
+        probabilities = np.load(output_dir / "deep-psma.npz")["probabilities"]
+        pred_ttb_ar = (probabilities[1, ...] > 0.33).astype("int8")
+        pred_norm_ar = (probabilities[2, ...] > 0.66).astype("int8")
+    else:
+        pred_ttb_ar = (sitk.GetArrayFromImage(pred_image) == 1).astype("int8")
+        pred_norm_ar = (sitk.GetArrayFromImage(pred_image) == 2).astype("int8")
 
     # convert predicted TTB label to sitk format with spacing information to run grow/expansion function
     pred_ttb_label = sitk.GetImageFromArray(pred_ttb_ar)
@@ -219,8 +217,103 @@ def execute_lesions_segmentation(
     output_label = sitk.GetImageFromArray(output_ar)
     output_label.CopyInformation(pred_image)
     output_label = sitk.Resample(output_label, pt_image, sitk.TranslationTransform(3), sitk.sitkNearestNeighbor, 0)
-    
+
     return output_label
+
+
+def execute_multiple_folds_lesions_segmentation(
+    pt_image: sitk.Image,
+    ct_image: sitk.Image,
+    total_segmentator_image: sitk.Image,
+    suv_threshold: float,
+    list_path_to_pth_for_tracer: list = [],  # ...or "checkpoint_final.pth"
+    tracer_name: str = "PSMA",
+) -> tuple[sitk.Image, sitk.Image]:
+    ct_image = sitk.Resample(ct_image, pt_image, sitk.TranslationTransform(3), sitk.sitkLinear, -1000)
+    organs_image_resampled = sitk.Resample(
+        total_segmentator_image, pt_image, sitk.TranslationTransform(3), sitk.sitkNearestNeighbor
+    )
+    organs_image_resampled = sitk.ChangeLabel(organs_image_resampled, ORGANS_MAPPING)
+    pt_image = pt_image / suv_threshold
+
+    list_probabilities = []
+    for checkpoint in list_path_to_pth_for_tracer:
+        *_, plan, arch = str(checkpoint).split("/")[-3].split("__")  # nnUNetTrainer__nnUNetResEncUNetLPlans__3d_fullres
+        fold = str(checkpoint).split("/")[-2][-1]  # fold0
+        dataset_id = str(checkpoint).split("/")[-4].split("_")[0].replace("Dataset", "")
+        log.info("Running nnU-Net inference for %s", dataset_id)
+        with TemporaryDirectory(dir=Path.cwd(), prefix="tmp_") as tmp_dir:
+            input_dir = Path(tmp_dir, "input")
+            output_dir = Path(tmp_dir, "output")
+            Path(input_dir).mkdir(parents=True, exist_ok=True)
+            Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+            sitk.WriteImage(pt_image, input_dir / "deep-psma_0000.nii.gz")
+            sitk.WriteImage(ct_image, input_dir / "deep-psma_0001.nii.gz")
+
+            if dataset_id.startswith("9"):
+                for i in [1, 2, 3, 4, 5, 6, 7, 8]:
+                    organ_mask_image = sitk.Cast(organs_image_resampled == i, sitk.sitkUInt8)
+                    sitk.WriteImage(organ_mask_image, input_dir / f"deep-psma_{i + 1:04d}.nii.gz")
+
+            subprocess.run(
+                [
+                    "nnUNetv2_predict",
+                    "-i",
+                    input_dir.as_posix(),
+                    "-o",
+                    output_dir.as_posix(),
+                    "-d",
+                    str(dataset_id),
+                    "-c",
+                    arch,
+                    "-p",
+                    plan,
+                    "-f",
+                    str(fold),
+                    "-chk",
+                    checkpoint,
+                    "-npp",
+                    "0",
+                    "-nps",
+                    "0",
+                    "--save_probabilities",
+                ],
+                check=True,
+            )
+
+            pred_image = sitk.ReadImage(output_dir / "deep-psma.nii.gz")
+            probabilities = np.load(output_dir / "deep-psma.npz")["probabilities"]
+            list_probabilities.append(probabilities)  # 3, C, H, W
+    mean_probabilities = np.stack(list_probabilities, axis=0)
+    mean_probabilities = np.mean(mean_probabilities, axis=0)
+    if tracer_name == "FDG":
+        pred_ttb_ar = (mean_probabilities[1, ...] > 0.33).astype("int8")
+        pred_norm_ar = (mean_probabilities[2, ...] > 0.66).astype("int8")
+    else:
+        pred_ttb_ar = (mean_probabilities[1, ...] > 0.5).astype("int8")
+        pred_norm_ar = (mean_probabilities[2, ...] > 0.5).astype("int8")
+
+    pt_array = sitk.GetArrayFromImage(pt_image)
+    tar = (pt_array >= 1.0).astype("int8")
+
+    # convert predicted TTB label to sitk format with spacing information to run grow/expansion function
+    pred_ttb_label = sitk.GetImageFromArray(pred_ttb_ar)
+    pred_ttb_label.CopyInformation(pred_image)
+
+    pred_norm_image = sitk.GetImageFromArray(pred_norm_ar)
+    pred_norm_image.CopyInformation(pred_image)
+
+    pred_ttb_ar_expanded = sitk.GetArrayFromImage(pred_ttb_label)  # get array from TTB expanded sitk image
+    pred_ttb_ar_expanded = np.logical_and(pred_ttb_ar_expanded > 0, tar > 0)  # re-threshold expanded disease region
+
+    output_ar = np.logical_and(pred_ttb_ar_expanded > 0, pred_norm_ar == 0).astype("int8")
+
+    output_label = sitk.GetImageFromArray(output_ar)
+    output_label.CopyInformation(pred_image)
+    output_label = sitk.Resample(output_label, pt_image, sitk.TranslationTransform(3), sitk.sitkNearestNeighbor, 0)
+
+    return output_label, pred_norm_image
 
 
 def expand_contract_label(label: sitk.Image, distance: float = 5.0) -> sitk.Image:
@@ -238,8 +331,64 @@ def expand_contract_label(label: sitk.Image, distance: float = 5.0) -> sitk.Imag
     return new_label
 
 
-@deprecated("This function is deprecated as it does not improve the performances.", category=FutureWarning)
+def refine_my_ttb_label(
+    ttb_image: sitk.Image,
+    pet_image: sitk.Image,
+    totseg_multilabel: sitk.Image,
+    expansion_radius_mm: float = 5.0,
+    pet_threshold_value: float = 3.0,
+    totseg_non_expand_values: list = [1, 2, 3, 5, 21],
+    normal_image: sitk.Image | None = None,
+) -> sitk.Image:
+    """refine ttb label by expanding and rethresholding the original prediction
+    set expansion radius mm to control distance that inferred TTB boundary is initially grown
+    set pet_threshold_value to match designated value for ground truth contouring workflow
+    (eg PSMA PET SUV=3).
+    Includes option to avoid growing the label in certain
+    tissue types in the total segmentator label (ex PSMA avoid expanding into liver, could
+    include [2,3,5,21] to also avoid kidneys and urinary bladder)
+    For other organ values see "total" class map from:
+    https://github.com/wasserth/TotalSegmentator/blob/master/totalsegmentator/map_to_binary.py
+    Lastly, possible to include the "normal" tissue inferred label from the baseline example
+    algorithm and will similarly avoid expanding into this region"""
+    ttb_original_array = sitk.GetArrayFromImage(
+        ttb_image
+    )  # original TTB array for inpainting back voxels in certain tissues
+    ttb_expanded_image = expand_contract_label(
+        ttb_image, expansion_radius_mm
+    )  # expand inferred label with function above
+    ttb_expanded_array = sitk.GetArrayFromImage(ttb_expanded_image)  # convert to numpy array
+    pet_threshold_array = (
+        sitk.GetArrayFromImage(pet_image) >= pet_threshold_value
+    )  # get numpy array of PET image voxels above threshold value
+    ttb_rethresholded_array = np.logical_and(
+        ttb_expanded_array, pet_threshold_array
+    )  # remove expanded TTB voxels below PET threshold
+
+    # loop through total segmentator tissue #s and use original TTB prediction in those labels
+    totseg_multilabel = sitk.Resample(
+        totseg_multilabel, ttb_image, sitk.TranslationTransform(3), sitk.sitkNearestNeighbor, 0
+    )
+    totseg_multilabel_array = sitk.GetArrayFromImage(totseg_multilabel)
+    for totseg_value in totseg_non_expand_values:
+        # paint the original TTB prediction into the totseg tissue regions - probably of most relevance for PSMA liver VOI
+        ttb_rethresholded_array[totseg_multilabel_array == totseg_value] = ttb_original_array[
+            totseg_multilabel_array == totseg_value
+        ]
+
+    # check if inferred normal array is included and if so set TTB voxels to background
+    if normal_image is not None:
+        normal_array = sitk.GetArrayFromImage(normal_image)
+        ttb_rethresholded_array[normal_array > 0] = 0
+    ttb_rethresholded_image = sitk.GetImageFromArray(
+        ttb_rethresholded_array.astype("int16")
+    )  # create output image & copy information
+    ttb_rethresholded_image.CopyInformation(ttb_image)
+    return ttb_rethresholded_image
+
+
 def refine_fdg_prediction_from_psma_prediction(
+    fdg_pt_image: sitk.Image,
     fdg_pred_image: sitk.Image,
     fdg_totseg_image: sitk.Image,
     psma_pred_image: sitk.Image,
@@ -276,6 +425,8 @@ def refine_fdg_prediction_from_psma_prediction(
     psma_totseg_array = sitk.GetArrayFromImage(psma_totseg_image)
     psma_totseg_labels = np.unique(psma_totseg_array[psma_pred_array])
 
+    fdg_pt_array = sitk.GetArrayFromImage(fdg_pt_image)
+
     # Used to log some statistics about the FDG post-processing
     stats = []
     # Allocate memory for post-processed FDG prediction
@@ -283,6 +434,7 @@ def refine_fdg_prediction_from_psma_prediction(
 
     for fdg_lesion_id in range(1, fdg_num_lesions + 1):
         fdg_lesion_mask = fdg_pred_array == fdg_lesion_id
+        suvmax = fdg_pt_array[fdg_lesion_mask].max()
         if not fdg_lesion_mask.any():
             continue
 
@@ -290,16 +442,17 @@ def refine_fdg_prediction_from_psma_prediction(
         fdg_totseg_labels = np.unique(fdg_totseg_array[fdg_lesion_mask])
 
         kept = any(label in psma_totseg_labels for label in fdg_totseg_labels if label != 0)
+        volume = np.sum(fdg_lesion_mask) * np.prod(fdg_pred_image.GetSpacing()) / 1000
         # the idea is to remove lesions that are only in one total segmentators classes
         # that do not match any totalsegmentator of psma
-        if kept:
+        if kept | (volume > 10.0) | (suvmax > 10):
             fdg_out_array[fdg_lesion_mask] = 1
 
         stats.append(
             {
                 "lesion_id": fdg_lesion_id,
                 "lesion_kept": kept,
-                "lesion_volume": np.sum(fdg_lesion_mask) * np.prod(fdg_pred_image.GetSpacing()),
+                "lesion_volume": volume,
             }
         )
 

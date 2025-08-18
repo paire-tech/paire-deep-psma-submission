@@ -200,9 +200,34 @@ def main() -> None:
         # 0: PET image, 1: CT image, 2-10: organ masks
         sitk.WriteImage(pt_image, images_tr_dir / f"{case_name}_0000.nii.gz")
         sitk.WriteImage(ct_image, images_tr_dir / f"{case_name}_0001.nii.gz")
-        for i in [1, 2, 3, 4, 5, 6, 7, 8]:
-            organ_mask_image = sitk.Cast(organs_image == i, sitk.sitkUInt8)
-            sitk.WriteImage(organ_mask_image, images_tr_dir / f"{case_name}_{i + 1:04d}.nii.gz")
+
+        if args.pt_mask:
+            pt_mask_image = sitk.Cast(pt_image >= 1.0, sitk.sitkUInt8)
+            sitk.WriteImage(pt_mask_image, images_tr_dir / f"{case_name}_0002.nii.gz")
+
+        start_idx = 2 if args.pt_mask else 1
+        for channel_idx, organ_id in enumerate([1, 2, 3, 4, 5, 6, 7, 8], start=start_idx):
+            organ_mask_image = sitk.Cast(organs_image == organ_id, sitk.sitkUInt8)
+            # If the sdt parameter is used, apply the signed distance transform to the organ mask
+            if args.sdt:
+                # Use "hard" SDF to avoid sharp edges
+                organ_mask_image = sitk.SignedMaurerDistanceMap(
+                    organ_mask_image,
+                    insideIsPositive=True,
+                    squaredDistance=False,
+                    useImageSpacing=True,
+                )
+                # Normalize the SDF to [0, 1] using a sigmoid function
+                # We parametrize the sigmoid 𝜎 with τ = w / 2.197 because:
+                # - At x = +2.197, the sigmoid 𝜎(x) ≈ 0.9.
+                # - At x = -2.197, the sigmoid 𝜎(x) ≈ 0.1.
+                # -> The total distance in x-space between [0.1, 0.9] is therefore about ≈ 4.394,
+                # That's why τ = w / 4.394 provides a sigmoid that smoothly transitions between 0.1 and 0.9.
+                w_mm = 10.0
+                tau = w_mm / 4.394
+                organ_mask_image = 1 / (1 + sitk.Exp(-organ_mask_image / tau))
+
+            sitk.WriteImage(organ_mask_image, images_tr_dir / f"{case_name}_{channel_idx:04d}.nii.gz")
 
         # Save the labels
         sitk.WriteImage(gt_image, labels_tr_dir / f"{case_name}.nii.gz")
@@ -257,6 +282,16 @@ def parse_args() -> Namespace:
         type=int,
         required=True,
         help="nnUNet dataset ID corresponding to the tracer (e.g. 801 for PSMA, 802 for FDG).",
+    )
+    parser.add_argument(
+        "--sdt",
+        action="store_true",
+        help="Use Signed Distance Transform (SDT) on the organs masks instead of binary masks.",
+    )
+    parser.add_argument(
+        "--pt-mask",
+        action="store_true",
+        help="Add the PT > SUV threshold mask as a channel in the input (PT, CT, PT > SUV threshold, ...organs).",
     )
     parser.add_argument(
         "-y",

@@ -1,3 +1,4 @@
+import glob
 import logging
 from functools import partial
 from pathlib import Path
@@ -10,7 +11,11 @@ from rich.progress import track
 from typer import Option, Typer
 
 from .config import settings
-from .inference import execute_lesions_segmentation, refine_fdg_prediction_from_psma_prediction
+from .inference import (
+    execute_multiple_folds_lesions_segmentation,
+    refine_fdg_prediction_from_psma_prediction,
+    refine_my_ttb_label,
+)
 from .utils import find_file_path, load_json
 
 IMAGE_EXTS = [".nii.gz", ".mha", ".tif", ".tiff"]
@@ -61,18 +66,35 @@ def main(
 
     # Load the model only once
     # model = load_model(weights_dir, device=device)
+    REFINE_TTB_LABEL = True
+    REFINE_FDG_BASED_ON_PSMA = True
 
     iter_data = iter_grand_challenge_data if input_format == "gc" else partial(iter_csv_data, input_csv=input_csv)
     for data in iter_data(input_dir=input_dir, output_dir=output_dir):
         # Run inference for PSMA inputs
         log.info("[PSMA] Running lesions segmentation inference")
-        psma_pred_image = execute_lesions_segmentation(
+        list_path_to_psma_models = glob.glob("/app/nnUNet_results/*PSMA*/**/*.pth", recursive=True)
+
+        psma_pred_image, psma_physiological_image = execute_multiple_folds_lesions_segmentation(
             pt_image=data["psma_pt_image"],
             ct_image=data["psma_ct_image"],
-            organs_image=data["psma_organ_segmentation_image"],
+            total_segmentator_image=data["psma_organ_segmentation_image"],
             suv_threshold=data["psma_pt_suv_threshold"],
-            dataset_id=901,
+            list_path_to_pth_for_tracer=list_path_to_psma_models,
+            tracer_name="PSMA",
         )
+
+        # expand nnU-Net predicted disease region
+        if REFINE_TTB_LABEL:
+            psma_pred_image = refine_my_ttb_label(
+                ttb_image=psma_pred_image,
+                pet_image=data["psma_pt_image"],
+                totseg_multilabel=data["psma_organ_segmentation_image"],
+                expansion_radius_mm=5.0,
+                pet_threshold_value=data["psma_pt_suv_threshold"],
+                totseg_non_expand_values=[1, 2, 3, 5, 21],
+                normal_image=psma_physiological_image,
+            )
 
         pred_path = Path(data["psma_pred_path"])
         pred_path.parent.mkdir(parents=True, exist_ok=True)
@@ -81,21 +103,37 @@ def main(
 
         # Run inference for FDG inputs
         log.info("[FDG ] Running lesions segmentation inference")
-        fdg_pred_image = execute_lesions_segmentation(
+        list_path_to_fdg_models = glob.glob("/app/nnUNet_results/*FDG*/**/*.pth", recursive=True)
+
+        fdg_pred_image, fdg_physiological_image = execute_multiple_folds_lesions_segmentation(
             pt_image=data["fdg_pt_image"],
             ct_image=data["fdg_ct_image"],
-            organs_image=data["fdg_organ_segmentation_image"],
+            total_segmentator_image=data["fdg_organ_segmentation_image"],
             suv_threshold=data["fdg_pt_suv_threshold"],
-            dataset_id=902,
+            list_path_to_pth_for_tracer=list_path_to_fdg_models,
+            tracer_name="FDG",
         )
 
+        if REFINE_TTB_LABEL:
+            fdg_pred_image = refine_my_ttb_label(
+                ttb_image=fdg_pred_image,
+                pet_image=data["fdg_pt_image"],
+                totseg_multilabel=data["fdg_organ_segmentation_image"],
+                expansion_radius_mm=5.0,
+                pet_threshold_value=data["fdg_pt_suv_threshold"],
+                totseg_non_expand_values=[1, 2, 3, 5, 21, 90],
+                normal_image=fdg_physiological_image,
+            )
+
         # NOTE: It appears this does not improve the performances
-        fdg_pred_image = refine_fdg_prediction_from_psma_prediction(
-             fdg_pred_image=fdg_pred_image,
-             fdg_totseg_image=data["fdg_organ_segmentation_image"],
-             psma_pred_image=psma_pred_image,
-             psma_totseg_image=data["psma_organ_segmentation_image"],
-        )
+        if REFINE_FDG_BASED_ON_PSMA:
+            fdg_pred_image = refine_fdg_prediction_from_psma_prediction(
+                fdg_pt_image=data["fdg_pt_image"],
+                fdg_pred_image=fdg_pred_image,
+                fdg_totseg_image=data["fdg_organ_segmentation_image"],
+                psma_pred_image=psma_pred_image,
+                psma_totseg_image=data["psma_organ_segmentation_image"],
+            )
 
         pred_path = Path(data["fdg_pred_path"])
         pred_path.parent.mkdir(parents=True, exist_ok=True)

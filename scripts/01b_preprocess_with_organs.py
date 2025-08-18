@@ -208,9 +208,8 @@ def main() -> None:
         start_idx = 2 if args.pt_mask else 1
         for channel_idx, organ_id in enumerate([1, 2, 3, 4, 5, 6, 7, 8], start=start_idx):
             organ_mask_image = sitk.Cast(organs_image == organ_id, sitk.sitkUInt8)
-            # If the sdt parameter is used, apply the signed distance transform to the organ mask
-            if args.sdt:
-                # Use "hard" SDF to avoid sharp edges
+            if args.sdf:
+                # Use "soft" SDF to avoid sharp edges in the binary mask
                 organ_mask_image = sitk.SignedMaurerDistanceMap(
                     organ_mask_image,
                     insideIsPositive=True,
@@ -284,7 +283,7 @@ def parse_args() -> Namespace:
         help="nnUNet dataset ID corresponding to the tracer (e.g. 801 for PSMA, 802 for FDG).",
     )
     parser.add_argument(
-        "--sdt",
+        "--sdf",
         action="store_true",
         help="Use Signed Distance Transform (SDT) on the organs masks instead of binary masks.",
     )

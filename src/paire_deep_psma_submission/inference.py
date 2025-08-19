@@ -205,22 +205,22 @@ PSMA_ENSEMBLE_CONFIG: EnsembleConfig = {
             "weight": 1.0,
         },
         # --- 901 ---
-        {
-            "id": "nnUNet-PSMA-901-fold0",  # <- Good
-            "tracer_name": "PSMA",
-            "dataset_id": 901,
-            "plan": "nnUNetPlans",
-            "trainer": "nnUNetTrainer",
-            "config": "3d_fullres",
-            "fold": 0,
-            "checkpoint": "checkpoint_best.pth",
-            "preprocessing": {
-                "pt": True,
-                "ct": True,
-                "organs": "binary_mask",
-            },
-            "weight": 1.0,
-        },
+        # {
+        #     "id": "nnUNet-PSMA-901-fold0",  # <- Good
+        #     "tracer_name": "PSMA",
+        #     "dataset_id": 901,
+        #     "plan": "nnUNetPlans",
+        #     "trainer": "nnUNetTrainer",
+        #     "config": "3d_fullres",
+        #     "fold": 0,
+        #     "checkpoint": "checkpoint_best.pth",
+        #     "preprocessing": {
+        #         "pt": True,
+        #         "ct": True,
+        #         "organs": "binary_mask",
+        #     },
+        #     "weight": 1.0,
+        # },
         # --- 911 ---
         {
             "id": "nnUNetResEncUNetM-PSMA-911-fold3",  # <- Good
@@ -297,7 +297,7 @@ FDG_ENSEMBLE_CONFIG: EnsembleConfig = {
                 "ct": True,
                 "organs": False,
             },
-            "weight": 3.0,
+            "weight": 2.0,
         },
         # --- 902 ---
         # {
@@ -349,22 +349,22 @@ FDG_ENSEMBLE_CONFIG: EnsembleConfig = {
         #     },
         #     "weight": 1.0,
         # },
-        {
-            "id": "nnUNetResEncUNetM-FDG-912-fold4",  # <- 'Good' on its validation set
-            "tracer_name": "FDG",
-            "dataset_id": 912,
-            "plan": "nnUNetResEncUNetMPlans",
-            "trainer": "nnUNetTrainer_250epochs",
-            "config": "3d_fullres",
-            "fold": 4,
-            "checkpoint": "checkpoint_best.pth",
-            "preprocessing": {
-                "pt": True,
-                "ct": True,
-                "organs": "binary_mask",
-            },
-            "weight": 1.0,
-        },
+        # {
+        #     "id": "nnUNetResEncUNetM-FDG-912-fold4",  # <- 'Good' on its validation set
+        #     "tracer_name": "FDG",
+        #     "dataset_id": 912,
+        #     "plan": "nnUNetResEncUNetMPlans",
+        #     "trainer": "nnUNetTrainer_250epochs",
+        #     "config": "3d_fullres",
+        #     "fold": 4,
+        #     "checkpoint": "checkpoint_best.pth",
+        #     "preprocessing": {
+        #         "pt": True,
+        #         "ct": True,
+        #         "organs": "binary_mask",
+        #     },
+        #     "weight": 1.0,
+        # },
         # --- 922 ---
         # {
         #     "id": "nnUNet-FDG-922-fold3",  # <- Meh

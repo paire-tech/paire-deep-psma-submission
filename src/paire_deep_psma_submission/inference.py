@@ -47,7 +47,7 @@ ORGANS_MAPPING = {
     14: 4,  #   lung_lower_lobe_right         -> lung
     15: 0,  #   esophagus                     -> unspecified
     16: 0,  #   trachea                       -> unspecified
-    17: 8,  #   thyroid_gland                 -> unspecified
+    17: 8,  #   thyroid_gland                 -> thyroid_gland
     18: 0,  #   small_bowel                   -> unspecified
     19: 0,  #   duodenum                      -> unspecified
     20: 0,  #   colon                         -> unspecified
@@ -181,10 +181,12 @@ FDG_CONFIG: Config = {
         "organs": "sdf_mask",
     },
 }
-PSMA_NON_EXPANDED_ORGANS = [1, 2, 3, 5, 21]
-FDG_NON_EXPANDED_ORGANS = [1, 2, 3, 5, 21]
+
+PSMA_TTB_EXPANSION_IGNORED_ORGAN_IDS = [1, 2, 3, 5, 21]
+FDG_TTB_EXPANSION_IGNORED_ORGAN_IDS = [1, 2, 3, 5, 21, 90]
 
 
+# WIP!
 def execute_lesions_segmentation_ensemble(
     pt_image: sitk.Image,
     ct_image: sitk.Image,

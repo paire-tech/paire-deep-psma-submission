@@ -56,15 +56,36 @@ The ensemble combines models trained on four distinct dataset configurations:
 3. **Corrected** (911/912): Manually corrected annotations with organ context
 4. **SDF-enhanced** (921/922): Signed distance function representation with sigmoid smoothing
 
-# Data Preprocessing
+# Preprocessing Pipeline
 
 For baseline datasets, we apply standard nnUNet preprocessing: PET images normalized by SUV threshold, CT images resampled to PET resolution and clipped to 5th/95th percentiles, followed by mean/std normalization.
 
-For organ-enhanced datasets, we integrate TotalSegmentator organ segmentation masks alongside the standard preprocessing. The SDF-enhanced approach converts binary organ masks to signed distance functions, applying sigmoid smoothing with 10mm edge width to create softer boundaries while maintaining sharp lesion edges.
+For organ-enhanced datasets, we integrate TotalSegmentator organ segmentation masks alongside the standard preprocessing. The TotalSegmentator provides 104 anatomical labels that we map to 8 simplified classes: unspecified (0), spleen (1), kidney (2), liver (3), lung (4), brain (5), urinary bladder (6), thyroid gland (8), and osteomedullar structures (7) including vertebrae, ribs, and long bones.
+
+The SDF-enhanced approach converts binary organ masks to signed distance functions, applying sigmoid smoothing with 10mm edge width to create softer boundaries while maintaining sharp lesion edges. This technique aims to provide more nuanced anatomical context without compromising lesion detection accuracy.
+
+# Postprocessing Pipeline
+
+Our postprocessing pipeline follows the organizers' baseline approach with one key modification. The process begins with ensemble prediction aggregation, where individual model outputs are weighted and combined. The aggregated probabilities are then thresholded using tracer-specific values: PSMA uses balanced thresholds (0.5/0.5), while FDG employs asymmetric thresholds (0.33/0.66) to account for higher metabolic variability.
+
+## Standard Postprocessing
+
+We use the organizers' standard expand-and-contract postprocessing function, which applies morphological operations with a 7mm expansion radius and excludes specific organs from the expansion process. The excluded organs include spleen, kidneys, liver, urinary bladder, brain structures to prevent false positives in regions with naturally high tracer uptake.
+
+## Custom FDG Refinement Based on PSMA
+
+The main innovation in our approach is the cross-tracer refinement. 
+This function removes FDG lesions that lack corresponding PSMA uptake in the same anatomical location:
+
+1. Each FDG lesion is mapped to its corresponding TotalSegmentator anatomical class.
+2. FDG lesions are retained only if they share anatomical location with PSMA-positive regions.
+3. Lesions are also preserved if they exceed volume (10 cm³) or SUV (10.0) thresholds.
+
+This refinement process reduces false positive FDG lesions by leveraging the complementary nature of PSMA and FDG imaging. 
 
 # Training and Inference
 
-We use 5-fold cross-validation with different folds selected based on validation performance. 
+We use 5-fold cross-validation with different folds selected based on validation performance and inference time constraints we encountered during the final submission. 
 Standard training employs the default nnUNet trainer, while complex datasets (921/922) use an extended 250-epoch trainer. 
 All training is performed on CUDA devices with mixed precision optimization.
 

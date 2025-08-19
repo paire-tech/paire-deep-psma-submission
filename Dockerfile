@@ -33,13 +33,13 @@ COPY --chown=appuser:appuser ./data/nnUNet_raw/ /app/nnUNet_raw/
 COPY --chown=appuser:appuser ./data/nnUNet_preprocessed/ /app/nnUNet_preprocessed/
 # PSMA Ensembling
 COPY --chown=appuser:appuser ./data/nnUNet_results/Dataset801_PSMA_PET/ /app/nnUNet_results/Dataset801_PSMA_PET/
-COPY --chown=appuser:appuser ./data/nnUNet_results/Dataset901_PSMA_PET/ /app/nnUNet_results/Dataset901_PSMA_PET/
+# COPY --chown=appuser:appuser ./data/nnUNet_results/Dataset901_PSMA_PET/ /app/nnUNet_results/Dataset901_PSMA_PET/
 COPY --chown=appuser:appuser ./data/nnUNet_results/Dataset911_PSMA_PET/ /app/nnUNet_results/Dataset911_PSMA_PET/
 COPY --chown=appuser:appuser ./data/nnUNet_results/Dataset921_PSMA_PET/ /app/nnUNet_results/Dataset921_PSMA_PET/
 # FDG Ensembling
 COPY --chown=appuser:appuser ./data/nnUNet_results/Dataset802_FDG_PET/ /app/nnUNet_results/Dataset802_FDG_PET/
 # COPY --chown=appuser:appuser ./data/nnUNet_results/Dataset902_FDG_PET/ /app/nnUNet_results/Dataset902_FDG_PET/
-COPY --chown=appuser:appuser ./data/nnUNet_results/Dataset912_FDG_PET/ /app/nnUNet_results/Dataset912_FDG_PET/
+# COPY --chown=appuser:appuser ./data/nnUNet_results/Dataset912_FDG_PET/ /app/nnUNet_results/Dataset912_FDG_PET/
 COPY --chown=appuser:appuser ./data/nnUNet_results/Dataset922_FDG_PET/ /app/nnUNet_results/Dataset922_FDG_PET/
 
 RUN tree /app/nnUNet_results -L 2 --sort name

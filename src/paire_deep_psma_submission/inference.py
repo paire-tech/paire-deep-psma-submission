@@ -5,8 +5,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import numpy as np
-from scipy import stats
 import SimpleITK as sitk
+from scipy import stats
 
 log = logging.getLogger(__name__)
 

@@ -35,6 +35,8 @@ def main() -> None:
         args.device,
         "-p",
         args.plan,
+        "-tr",
+        args.trainer,
     ]
     if args.resume:
         cmd_args.append("--c")
@@ -73,6 +75,12 @@ def parse_args() -> Namespace:
         "--resume",
         action="store_true",
         help="Continue training from the last checkpoint if available.",
+    )
+    parser.add_argument(
+        "--trainer",
+        type=str,
+        default="nnUNetTrainer",
+        help="Trainer class to use (e.g. nnUNetTrainer_250epochs).",
     )
     parser.add_argument(
         "-y",

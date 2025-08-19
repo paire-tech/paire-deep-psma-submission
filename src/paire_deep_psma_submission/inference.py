@@ -6,7 +6,6 @@ from tempfile import TemporaryDirectory
 
 import numpy as np
 import SimpleITK as sitk
-from scipy import stats
 
 log = logging.getLogger(__name__)
 
@@ -146,7 +145,9 @@ def mask_to_distance_map(mask_sitk: sitk.Image) -> sitk.Image:
     return dist
 
 
-def crop_sitk_to_mask(sitk_image: sitk.Image, sitk_mask: sitk.Image, except_in_dims: list[int] = None) -> sitk.Image:
+def crop_sitk_to_mask(
+    sitk_image: sitk.Image, sitk_mask: sitk.Image, except_in_dims: list[int] | None = None
+) -> sitk.Image:
     """crop a sitk image to its foreground
     will be cropped to volumes where sitk_mask > 0"""
     sitk_mask_connected = sitk.ConnectedComponent(sitk_mask)

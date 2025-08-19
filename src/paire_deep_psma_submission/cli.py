@@ -6,6 +6,7 @@ from typing import Generator, NotRequired, TypedDict, Union
 import numpy as np
 import pandas as pd
 import SimpleITK as sitk
+from dotenv import load_dotenv
 from rich.progress import track
 from typer import Option, Typer
 
@@ -76,8 +77,10 @@ def main(
         help="Device to use for inference. Options are 'cuda', 'cpu' or 'mps'.",
     ),
 ) -> None:
-    use_tta = not no_tta  # TTA is used unless --no-tta is passed
-    postprocess_fdg_based_on_psma_classes = not do_not_postprocess_fdg_based_on_psma_classes
+    # This line is used to automatically load nnUNet environment variables in case they
+    # are set in a .env file.
+    load_dotenv(override=True)
+
     if input_format not in ["gc", "csv"]:
         raise ValueError(f"Unsupported input format: {input_format}. Supported formats are 'gc' and 'csv'.")
 

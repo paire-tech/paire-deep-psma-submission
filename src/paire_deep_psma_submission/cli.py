@@ -86,7 +86,7 @@ def main(
         pred_path = Path(data["psma_pred_path"])
         pred_path.parent.mkdir(parents=True, exist_ok=True)
         log.info("Saving prediction to '%s'", pred_path)
-        sitk.WriteImage(psma_pred_image, pred_path)
+        sitk.WriteImage(sitk.Cast(psma_pred_image, sitk.sitkUInt8), pred_path)
 
         # Run inference for FDG inputs
         log.info("[FDG ] Running lesions segmentation inference")
@@ -110,7 +110,7 @@ def main(
         pred_path = Path(data["fdg_pred_path"])
         pred_path.parent.mkdir(parents=True, exist_ok=True)
         log.info("Saving prediction to '%s'", pred_path)
-        sitk.WriteImage(fdg_pred_image, pred_path)
+        sitk.WriteImage(sitk.Cast(fdg_pred_image, sitk.sitkUInt8), pred_path)
 
 
 def iter_grand_challenge_data(

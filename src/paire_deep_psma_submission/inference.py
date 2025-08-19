@@ -192,7 +192,7 @@ def execute_multiple_folds_lesions_segmentation(
     list_path_to_pth_for_tracer: list = [],  # ...or "checkpoint_final.pth"
     tracer_name: str = "PSMA",
 ) -> tuple[sitk.Image, sitk.Image]:
-    # pt_image = crop_sitk_to_mask(pt_image, pt_image > 0.05)  # in suv -> crop it
+    #pt_image = crop_sitk_to_mask(pt_image, pt_image > 0.05)  # in suv -> crop it
 
     ct_image = sitk.Resample(ct_image, pt_image, sitk.TranslationTransform(3), sitk.sitkLinear, -1000)
     organs_image_resampled = sitk.Resample(
@@ -203,7 +203,7 @@ def execute_multiple_folds_lesions_segmentation(
 
     list_probabilities = []
     list_preds = []
-    for checkpoint in list_path_to_pth_for_tracer:
+    for num_checkpoint, checkpoint in enumerate(list_path_to_pth_for_tracer):
         *_, plan, arch = str(checkpoint).split("/")[-3].split("__")  # nnUNetTrainer__nnUNetResEncUNetLPlans__3d_fullres
         fold = str(checkpoint).split("/")[-2][-1]  # fold0
         dataset_id = str(checkpoint).split("/")[-4].split("_")[0].replace("Dataset", "")
@@ -229,6 +229,7 @@ def execute_multiple_folds_lesions_segmentation(
                         organ_mask_data = 1 / (1 + np.exp(-organ_mask_data))
                         organ_mask_image = sitk.GetImageFromArray(organ_mask_data)
                         organ_mask_image.CopyInformation(organs_image_resampled)
+                    organ_mask_image = sitk.Cast(organ_mask_image, sitk.sitkFloat32)
                     sitk.WriteImage(organ_mask_image, input_dir / f"deep-psma_{i + 1:04d}.nii.gz")
 
             log.info(f"Running nnU-Net inference for with {checkpoint}")
@@ -261,16 +262,18 @@ def execute_multiple_folds_lesions_segmentation(
             pred_image = sitk.ReadImage(output_dir / "deep-psma.nii.gz")
             pred_data = sitk.GetArrayFromImage(pred_image)
             probabilities = np.load(output_dir / "deep-psma.npz")["probabilities"]
-            list_probabilities.append(probabilities)  # 3, C, H, W
+            if num_checkpoint == 0:
+                continue
+            else:
+                probabilities += np.load(output_dir / "deep-psma.npz")["probabilities"]
             # list_preds.append(pred_data)
-    mean_probabilities = np.stack(list_probabilities, axis=0)
-    mean_probabilities = np.mean(mean_probabilities, axis=0)
+    probabilities /= len(list_path_to_pth_for_tracer)
     if tracer_name == "FDG":
-        pred_ttb_ar = (mean_probabilities[1, ...] > 0.33).astype("int8")
-        pred_norm_image = (mean_probabilities[2, ...] > 0.66).astype("int8")
+        pred_ttb_ar = (probabilities[1, ...] > 0.33).astype("int8")
+        pred_norm_image = (probabilities[2, ...] > 0.66).astype("int8")
     else:
-        pred_ttb_ar = (mean_probabilities[1, ...] > 0.5).astype("int8")
-        pred_norm_image = (mean_probabilities[2, ...] > 0.5).astype("int8")
+        pred_ttb_ar = (probabilities[1, ...] > 0.5).astype("int8")
+        pred_norm_image = (probabilities[2, ...] > 0.5).astype("int8")
 
     """
     preds_array = np.stack(list_probabilities, axis=0)

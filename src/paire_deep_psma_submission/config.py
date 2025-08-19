@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     INPUT_DIR: str = "/input"
     OUTPUT_DIR: str = "/output"
 
+    # Device configuration
+    DEVICE: str = "cuda" if CUDA_AVAILABLE else "cpu"
+
     # Logging configuration
     LOG_FORMAT: str = "%(message)s"
     LOG_LEVEL: str = "INFO"

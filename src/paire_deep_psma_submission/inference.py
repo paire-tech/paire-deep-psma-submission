@@ -5,7 +5,7 @@ import subprocess
 import time
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any, Dict, Literal, Optional, Sequence, TypedDict, Union, overload
+from typing import Any, Dict, List, Literal, NotRequired, Optional, Sequence, TypedDict, Union, overload
 
 import numpy as np
 import SimpleITK as sitk
@@ -29,7 +29,13 @@ class Config(TypedDict):
     fold: int
     checkpoint: str
     preprocessing: PreprocessingConfig
-    weight: float  # Only used for ensemble
+    weight: NotRequired[float]  # Only used for ensemble
+
+
+class EnsembleConfig(TypedDict):
+    configs: List[Config]
+    ttb_threshold: float
+    normal_threshold: float
 
 
 ORGANS_MAPPING = {
@@ -153,38 +159,50 @@ ORGANS_MAPPING = {
     117: 0,  #  costal_cartilages             -> unspecified
 }
 
-PSMA_CONFIG: Config = {
-    "id": "nnUNet-FDG-921",
-    "tracer_name": "PSMA",
-    "dataset_id": 921,
-    "plan": "nnUNetResEncUNetMPlans",
-    "trainer": "nnUNetTrainer_250epochs",
-    "config": "3d_fullres",
-    "fold": 2,
-    "checkpoint": "checkpoint_best.pth",
-    "preprocessing": {
-        "pt": True,
-        "ct": True,
-        "organs": "sdf_mask",
-    },
-    "weight": 1.0,
+PSMA_ENSEMBLE_CONFIG: EnsembleConfig = {
+    "configs": [
+        {
+            "id": "nnUNet-FDG-921",
+            "tracer_name": "PSMA",
+            "dataset_id": 921,
+            "plan": "nnUNetResEncUNetMPlans",
+            "trainer": "nnUNetTrainer_250epochs",
+            "config": "3d_fullres",
+            "fold": 2,
+            "checkpoint": "checkpoint_best.pth",
+            "preprocessing": {
+                "pt": True,
+                "ct": True,
+                "organs": "sdf_mask",
+            },
+            "weight": 1.0,
+        }
+    ],
+    "ttb_threshold": 0.5,
+    "normal_threshold": 0.5,
 }
 
-FDG_CONFIG: Config = {
-    "id": "nnUNet-FDG-922",
-    "tracer_name": "FDG",
-    "dataset_id": 922,
-    "plan": "nnUNetResEncUNetMPlans",
-    "trainer": "nnUNetTrainer_250epochs",
-    "config": "3d_fullres",
-    "fold": 2,
-    "checkpoint": "checkpoint_best.pth",
-    "preprocessing": {
-        "pt": True,
-        "ct": True,
-        "organs": "sdf_mask",
-    },
-    "weight": 1.0,
+FDG_ENSEMBLE_CONFIG: EnsembleConfig = {
+    "configs": [
+        {
+            "id": "nnUNet-FDG-922",
+            "tracer_name": "FDG",
+            "dataset_id": 922,
+            "plan": "nnUNetResEncUNetMPlans",
+            "trainer": "nnUNetTrainer_250epochs",
+            "config": "3d_fullres",
+            "fold": 2,
+            "checkpoint": "checkpoint_best.pth",
+            "preprocessing": {
+                "pt": True,
+                "ct": True,
+                "organs": "sdf_mask",
+            },
+            "weight": 1.0,
+        }
+    ],
+    "ttb_threshold": 0.33,
+    "normal_threshold": 0.66,
 }
 
 EXPANSION_RADIUS_MM = 7.0
@@ -198,25 +216,24 @@ def execute_lesions_segmentation_ensemble(
     totseg_image: sitk.Image,
     suv_threshold: float,
     *,
-    configs: Sequence[Config],
-    ttb_threshold: float = 0.5,
-    normal_threshold: float = 0.5,
+    config: EnsembleConfig,
     device: str = "cuda",
 ) -> sitk.Image:
     log.info("Starting lesions segmentation ensemble!")
 
     scores: Optional[np.ndarray] = None
-    for config in configs:
+    for cfg in config["configs"]:
         probabilities = execute_lesions_segmentation(
             pt_image=pt_image,
             ct_image=ct_image,
             totseg_image=totseg_image,
             suv_threshold=suv_threshold,
-            config=config,
+            config=cfg,
             device=device,
             return_probabilities=True,
         )
-        probabilities *= config["weight"]
+        probabilities *= cfg.get("weight", 1.0)
+
         if scores is None:
             scores = probabilities
         else:
@@ -226,10 +243,10 @@ def execute_lesions_segmentation_ensemble(
         raise ValueError("No scores were computed!")
 
     # Normalize the scores to [0, 1]
-    scores /= sum(config["weight"] for config in configs)
+    scores /= sum(cfg.get("weight", 1.0) for cfg in config["configs"])
 
-    pred_ttb_array = (scores[1] > ttb_threshold).astype("uint8")
-    pred_normal_array = (scores[2] > normal_threshold).astype("uint8")
+    pred_ttb_array = (scores[1] > config["ttb_threshold"]).astype("uint8")
+    pred_normal_array = (scores[2] > config["normal_threshold"]).astype("uint8")
 
     pred_ttb_image = sitk.GetImageFromArray(pred_ttb_array)
     pred_normal_image = sitk.GetImageFromArray(pred_normal_array)

@@ -54,6 +54,7 @@ build: ## Build a production docker image
 .PHONY: run
 run: ## Run the production docker image
 	docker run --rm -it \
+		--user $(shell id -u):$(shell id -g) \
 		--gpus all \
 		-v $(INPUT_DIR):/input/:ro \
 		-v $(OUTPUT_DIR):/output/ \

@@ -192,7 +192,7 @@ def execute_multiple_folds_lesions_segmentation(
     list_path_to_pth_for_tracer: list = [],  # ...or "checkpoint_final.pth"
     tracer_name: str = "PSMA",
 ) -> tuple[sitk.Image, sitk.Image]:
-    #pt_image = crop_sitk_to_mask(pt_image, pt_image > 0.05)  # in suv -> crop it
+    pt_image = crop_sitk_to_mask(pt_image, pt_image > 0.05)  # in suv -> crop it
 
     ct_image = sitk.Resample(ct_image, pt_image, sitk.TranslationTransform(3), sitk.sitkLinear, -1000)
     organs_image_resampled = sitk.Resample(

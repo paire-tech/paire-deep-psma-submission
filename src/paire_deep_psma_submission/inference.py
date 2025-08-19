@@ -3,13 +3,32 @@ import subprocess
 import time
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import Literal, Sequence, TypedDict, Union
 
 import numpy as np
 import SimpleITK as sitk
 
 log = logging.getLogger(__name__)
 
-# TotalSegmentator organs mapping classes
+
+class PreprocessingConfig(TypedDict):
+    pt: Literal[True]
+    ct: Literal[True]
+    organs: Literal["sdf_mask", "binary_mask", False]
+
+
+class Config(TypedDict):
+    id: str
+    tracer_name: str
+    dataset_id: int
+    plan: str
+    trainer: str
+    config: str
+    fold: int
+    checkpoint: str
+    preprocessing: PreprocessingConfig
+
+
 ORGANS_MAPPING = {
     0: 0,  #    unspecified                   -> unspecified
     1: 1,  #    spleen                        -> spleen
@@ -131,178 +150,225 @@ ORGANS_MAPPING = {
     117: 0,  #  costal_cartilages             -> unspecified
 }
 
-DEFAULT_EXPANSION_RADIUS_MM = 7.0
-DEFAULT_IGNORED_ORGAN_IDS = [1, 2, 3, 5, 21]
+PSMA_CONFIG: Config = {
+    "id": "nnUNet-FDG-921",
+    "tracer_name": "PSMA",
+    "dataset_id": 921,
+    "plan": "nnUNetResEncUNetMPlans",
+    "trainer": "nnUNetTrainer_250epochs",
+    "config": "3d_fullres",
+    "fold": 2,
+    "checkpoint": "checkpoint_final.pth",
+    "preprocessing": {
+        "pt": True,
+        "ct": True,
+        "organs": "sdf_mask",
+    },
+}
 
-def mask_to_distance_map(mask_sitk: sitk.Image) -> sitk.Image:
-    mask = sitk.Cast(mask_sitk > 0, sitk.sitkUInt8)
-    dist = sitk.SignedMaurerDistanceMap(
-        mask,
-        insideIsPositive=True,
-        squaredDistance=False,
-        useImageSpacing=True,
-    )
-    return dist
-
-
-def crop_sitk_to_mask(
-    sitk_image: sitk.Image, sitk_mask: sitk.Image, except_in_dims: list[int] | None = None
-) -> sitk.Image:
-    """crop a sitk image to its foreground
-    will be cropped to volumes where sitk_mask > 0"""
-    sitk_mask_connected = sitk.ConnectedComponent(sitk_mask)
-    stats = sitk.LabelShapeStatisticsImageFilter()
-    stats.Execute(sitk_mask_connected)
-    if len(stats.GetLabels()) == 0:
-        print("WARNING in crop_sitk_to_mask, mask has no value > 0, do nothing")
-        return sitk_image
-    # take the largest connected component
-    largest_label = None
-    largest_size = 0
-    for label in stats.GetLabels():
-        size = stats.GetNumberOfPixels(label)
-        if size > largest_size:
-            largest_label = label
-            largest_size = size
-    bbox = stats.GetBoundingBox(largest_label)
-    xmin, ymin, zmin, xsize, ysize, zsize = bbox
-    slicer = (
-        slice(xmin, xmin + xsize),
-        slice(ymin, ymin + ysize),
-        slice(zmin, zmin + zsize),
-    )
-    if except_in_dims is not None:
-        slicer = list(slicer)  # type: ignore
-        for dim in except_in_dims:
-            slicer[dim] = slice(None, None)  # type: ignore
-        slicer = tuple(slicer)  # type: ignore
-    cropped_sitk_obj = sitk_image[slicer]
-    return cropped_sitk_obj
+FDG_CONFIG: Config = {
+    "id": "nnUNet-FDG-922",
+    "tracer_name": "FDG",
+    "dataset_id": 922,
+    "plan": "nnUNetResEncUNetMPlans",
+    "trainer": "nnUNetTrainer_250epochs",
+    "config": "3d_fullres",
+    "fold": 2,
+    "checkpoint": "checkpoint_final.pth",
+    "preprocessing": {
+        "pt": True,
+        "ct": True,
+        "organs": "sdf_mask",
+    },
+}
 
 
-def majority_vote_onehot(preds: np.ndarray, n_classes: int) -> np.ndarray:
-    onehot = np.eye(n_classes, dtype=np.int32)[preds]  # (N, *S, K)
-    counts = onehot.sum(axis=0)  # (*S, K)
-    return counts.argmax(axis=-1)
-
-
-def execute_multiple_folds_lesions_segmentation(
+def execute_lesions_segmentation_ensemble(
     pt_image: sitk.Image,
     ct_image: sitk.Image,
-    total_segmentator_image: sitk.Image,
+    organs_image: sitk.Image,
     suv_threshold: float,
-    list_path_to_pth_for_tracer: list = [],  # ...or "checkpoint_final.pth"
-    tracer_name: str = "PSMA",
-) -> tuple[sitk.Image, sitk.Image]:
-    pt_image = crop_sitk_to_mask(pt_image, pt_image > 0.05)  # in suv -> crop it
+    *,
+    configs: Sequence[Config],
+    device: str = "cuda",
+) -> sitk.Image:
+    log.info("Starting lesions segmentation ensemble!")
 
+    log.info("Preprocessing inputs...")
     ct_image = sitk.Resample(ct_image, pt_image, sitk.TranslationTransform(3), sitk.sitkLinear, -1000)
-    organs_image_resampled = sitk.Resample(
-        total_segmentator_image, pt_image, sitk.TranslationTransform(3), sitk.sitkNearestNeighbor
-    )
-    organs_image_resampled = sitk.ChangeLabel(organs_image_resampled, ORGANS_MAPPING)
+    organs_image = sitk.Resample(organs_image, pt_image, sitk.TranslationTransform(3), sitk.sitkNearestNeighbor)
+    organs_image = sitk.ChangeLabel(organs_image, ORGANS_MAPPING)
     pt_image = pt_image / suv_threshold
 
-    # list_probabilities = []
-    list_preds = []
-    for checkpoint in list_path_to_pth_for_tracer:
-        *_, plan, arch = str(checkpoint).split("/")[-3].split("__")  # nnUNetTrainer__nnUNetResEncUNetLPlans__3d_fullres
-        fold = str(checkpoint).split("/")[-2][-1]  # fold0
-        dataset_id = str(checkpoint).split("/")[-4].split("_")[0].replace("Dataset", "")
-        log.info("Running nnU-Net inference for %s", dataset_id)
-        with TemporaryDirectory(dir=Path.cwd(), prefix="tmp_") as tmp_dir:
-            input_dir = Path(tmp_dir, "input")
-            output_dir = Path(tmp_dir, "output")
-            Path(input_dir).mkdir(parents=True, exist_ok=True)
-            Path(output_dir).mkdir(parents=True, exist_ok=True)
+    with TemporaryDirectory(dir=Path.cwd(), prefix="tmp_") as tmp_dir:
+        input_dir = Path(tmp_dir, "input")
+        output_dir = Path(tmp_dir, "output")
+        Path(input_dir).mkdir(parents=True, exist_ok=True)
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-            sitk.WriteImage(pt_image, input_dir / "deep-psma_0000.nii.gz")
-            sitk.WriteImage(ct_image, input_dir / "deep-psma_0001.nii.gz")
+        sitk.WriteImage(pt_image, input_dir / "deep-psma_0000.nii.gz")
+        sitk.WriteImage(ct_image, input_dir / "deep-psma_0001.nii.gz")
 
-            if dataset_id.startswith("9"):
-                for i in [1, 2, 3, 4, 5, 6, 7, 8]:
-                    organ_mask_image = sitk.Cast(organs_image_resampled == i, sitk.sitkUInt8)
-                    if dataset_id.startswith("92"):
-                        organ_mask_image = mask_to_distance_map(organ_mask_image)
-                        # noramlize organ_mask_image to 0-1
-                        organ_mask_data = sitk.GetArrayFromImage(organ_mask_image)
-                        organ_mask_data /= 2.275830678197542
-                        # sigmoid
-                        organ_mask_data = 1 / (1 + np.exp(-organ_mask_data))
-                        organ_mask_image = sitk.GetImageFromArray(organ_mask_data)
-                        organ_mask_image.CopyInformation(organs_image_resampled)
-                    sitk.WriteImage(organ_mask_image, input_dir / f"deep-psma_{i + 1:04d}.nii.gz")
+    raise NotImplementedError
 
-            log.info(f"Running nnU-Net inference for with {checkpoint}")
-            subprocess.run(
-                [
-                    "nnUNetv2_predict",
-                    "-i",
-                    input_dir.as_posix(),
-                    "-o",
-                    output_dir.as_posix(),
-                    "-d",
-                    str(dataset_id),
-                    "-c",
-                    arch,
-                    "-p",
-                    plan,
-                    "-f",
-                    str(fold),
-                    "-chk",
-                    checkpoint,
-                    "-npp",
-                    "0",
-                    "-nps",
-                    "0",
-                    # "--save_probabilities",
-                ],
-                check=True,
-            )
 
-            pred_image = sitk.ReadImage(output_dir / "deep-psma.nii.gz")
-            pred_data = sitk.GetArrayFromImage(pred_image)
-            # probabilities = np.load(output_dir / "deep-psma.npz")["probabilities"]
-            # list_probabilities.append(probabilities)  # 3, C, H, W
-            list_preds.append(pred_data)
-    # mean_probabilities = np.stack(list_probabilities, axis=0)
-    # mean_probabilities = np.mean(mean_probabilities, axis=0)
-    # if tracer_name == "FDG":
-    #    pred_ttb_ar = (mean_probabilities[1, ...] > 0.33).astype("int8")
-    # pred_norm_ar = (mean_probabilities[2, ...] > 0.66).astype("int8")
-    # else:
-    #    pred_ttb_ar = (mean_probabilities[1, ...] > 0.5).astype("int8")
-    #    pred_norm_ar = (mean_probabilities[2, ...] > 0.5).astype("int8")
-    preds_array = np.stack(list_preds, axis=0)
-    if len(list_preds) > 1:
-        if tracer_name == "PSMA":
-            log.info("Using majority voting for PSMA with %d models", len(list_preds))
-            preds_array = majority_vote_onehot(preds_array, 3)
-        else:
-            log.info("Using maximal voting for FDG with %d models", len(list_preds))
-        preds_array = np.argmax(preds_array, axis=0)  # maximalist voting
-    else:
-        preds_array = preds_array[0]
-    pred_ttb_ar = (preds_array == 1).astype("int8")
-    pred_norm_image = (preds_array == 2).astype("int8")
+def execute_lesions_segmentation(
+    pt_image: sitk.Image,
+    ct_image: sitk.Image,
+    totseg_image: sitk.Image,
+    suv_threshold: float,
+    *,
+    config: Config,
+    device: str = "cuda",
+    return_probabilities: bool = False,
+) -> sitk.Image:
+    log.info("Starting lesions segmentation!")
 
-    # pt_array = sitk.GetArrayFromImage(pt_image)
-    # tar = (pt_array >= 1.0).astype("int8")
+    log.info("Preprocessing inputs...")
+    ct_image = sitk.Resample(ct_image, pt_image, sitk.TranslationTransform(3), sitk.sitkLinear, -1000)
+    organs_image = sitk.Resample(totseg_image, pt_image, sitk.TranslationTransform(3), sitk.sitkNearestNeighbor)
+    organs_image = sitk.ChangeLabel(organs_image, ORGANS_MAPPING)
+    pt_image = pt_image / suv_threshold
+
+    with TemporaryDirectory(dir=Path.cwd(), prefix="tmp_") as tmp_dir:
+        input_dir = Path(tmp_dir, "input")
+        output_dir = Path(tmp_dir, "output")
+        Path(input_dir).mkdir(parents=True, exist_ok=True)
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+        sitk.WriteImage(pt_image, input_dir / "deep-psma_0000.nii.gz")
+        sitk.WriteImage(ct_image, input_dir / "deep-psma_0001.nii.gz")
+
+        if config["preprocessing"]["organs"]:
+            log.info("Preprocessing organs...")
+            for channel_idx, organ_id in enumerate([1, 2, 3, 4, 5, 6, 7, 8], start=2):
+                organ_mask_image = sitk.Cast(organs_image == organ_id, sitk.sitkUInt8)
+
+                if config["preprocessing"]["organs"] == "binary_mask":
+                    log.info("Using binary mask for organ %d", organ_id)
+
+                if config["preprocessing"]["organs"] == "sdf_mask":
+                    log.info("Using SDF mask for organ %d", organ_id)
+                    # Use SignedMaurerDistanceMap to create a distance map for the organ mask
+                    organ_mask_image = sitk.SignedMaurerDistanceMap(
+                        organ_mask_image,
+                        insideIsPositive=True,
+                        squaredDistance=False,
+                        useImageSpacing=True,
+                    )
+                    organ_mask_image = 1 / (1 + sitk.Exp(-organ_mask_image / 2.275830678197542))
+                    organ_mask_image = sitk.Cast(organ_mask_image, sitk.sitkFloat32)
+
+                sitk.WriteImage(organ_mask_image, input_dir / f"deep-psma_{channel_idx:04d}.nii.gz")
+
+        nnunet_predict(
+            input_dir=input_dir,
+            output_dir=output_dir,
+            dataset_id=config["dataset_id"],
+            config=config["config"],
+            trainer=config["trainer"],
+            checkpoint=config["checkpoint"],
+            plan=config["plan"],
+            fold=config["fold"],
+            device=device,
+            save_probabilities=return_probabilities,
+        )
+
+        if return_probabilities:
+            scores = np.load(output_dir / "deep-psma.npz")
+            return scores["probabilities"]
+
+        pred_image = sitk.ReadImage(output_dir / "deep-psma.nii.gz")
+
+    pt_array = sitk.GetArrayFromImage(pt_image)
+    tar = (pt_array >= 1.0).astype("int8")
+
+    pred_ttb_ar = (sitk.GetArrayFromImage(pred_image) == 1).astype("int8")
+    pred_norm_ar = (sitk.GetArrayFromImage(pred_image) == 2).astype("int8")
 
     # convert predicted TTB label to sitk format with spacing information to run grow/expansion function
     pred_ttb_label = sitk.GetImageFromArray(pred_ttb_ar)
     pred_ttb_label.CopyInformation(pred_image)
 
-    pred_norm_image = sitk.GetImageFromArray(pred_norm_image)
-    pred_norm_image.CopyInformation(pred_image)
+    # expand nnU-Net predicted disease region
+    pred_ttb_label_expanded = expand_contract_label(pred_ttb_label, distance=7.0)
+    pred_ttb_ar_expanded = sitk.GetArrayFromImage(pred_ttb_label_expanded)
+    pred_ttb_ar_expanded = np.logical_and(pred_ttb_ar_expanded > 0, tar > 0)
+    output_ar = np.logical_and(pred_ttb_ar_expanded > 0, pred_norm_ar == 0).astype("int8")
 
-    return pred_ttb_label, pred_norm_image
+    output_label = sitk.GetImageFromArray(output_ar)
+    output_label.CopyInformation(pred_image)
+    output_label = sitk.Resample(output_label, pt_image, sitk.TranslationTransform(3), sitk.sitkNearestNeighbor, 0)
+
+    return output_label
 
 
-def expand_contract_label(label: sitk.Image, distance: float = 5.0) -> sitk.Image:
-    lar = sitk.GetArrayFromImage(label)
-    label_single = sitk.GetImageFromArray((lar > 0).astype("int16"))
-    label_single.CopyInformation(label)
+def nnunet_predict(
+    input_dir: Union[str, Path],
+    output_dir: Union[str, Path],
+    dataset_id: int,
+    config: str,
+    trainer: str,
+    checkpoint: str,
+    plan: str,
+    fold: int,
+    device: str = "cuda",
+    save_probabilities: bool = False,
+) -> None:
+    log.info("Running nnU-Net inference!")
+    args = [
+        "nnUNetv2_predict",
+        "-i",
+        Path(input_dir).as_posix(),
+        "-o",
+        Path(output_dir).as_posix(),
+        "-d",
+        str(dataset_id),
+        "-c",
+        config,
+        "-tr",
+        trainer,
+        "-p",
+        plan,
+        "-f",
+        str(fold),
+        "-chk",
+        checkpoint,
+        "-device",
+        device,
+        "-npp",
+        "0",
+        "-nps",
+        "0",
+    ]
+    if save_probabilities:
+        args.append("--save_probabilities")
+
+    log.info("Executing command: %s", " ".join(args))
+    subprocess.run(args, check=True)
+
+
+def nnunet_ensemble(
+    input_dirs: Sequence[Union[str, Path]],
+    output_dir: Union[str, Path],
+) -> None:
+    log.info("Running nnU-Net ensemble inference!")
+    args = [
+        "nnUNetv2_ensemble",
+        "-i",
+        *[Path(d).as_posix() for d in input_dirs],
+        "-o",
+        Path(output_dir).as_posix(),
+    ]
+
+    log.info("Executing command: %s", " ".join(args))
+    subprocess.run(args, check=True)
+
+
+def expand_contract_label(label_image: sitk.Image, distance: float) -> sitk.Image:
+    label_array = sitk.GetArrayFromImage(label_image)
+    label_single = sitk.GetImageFromArray((label_array > 0).astype("int16"))
+    label_single.CopyInformation(label_image)
     distance_filter = sitk.SignedMaurerDistanceMapImageFilter()
     distance_filter.SetUseImageSpacing(True)
     distance_filter.SquaredDistanceOff()
@@ -310,62 +376,35 @@ def expand_contract_label(label: sitk.Image, distance: float = 5.0) -> sitk.Imag
     dmap_ar = sitk.GetArrayFromImage(dmap)
     new_label_ar = (dmap_ar <= distance).astype("int16")
     new_label = sitk.GetImageFromArray(new_label_ar)
-    new_label.CopyInformation(label)
+    new_label.CopyInformation(label_image)
     return new_label
 
 
-def refine_my_ttb_label(
+def refine_predicted_ttb_image(
     ttb_image: sitk.Image,
-    pet_image: sitk.Image,
-    totseg_multilabel: sitk.Image,
+    pt_image: sitk.Image,
+    totseg_image: sitk.Image,
+    suv_threshold: float,
     expansion_radius_mm: float = 5.0,
-    pet_threshold_value: float = 3.0,
     totseg_non_expand_values: list = [1, 2, 3, 5, 21],
     normal_image: sitk.Image | None = None,
 ) -> sitk.Image:
-    """refine ttb label by expanding and rethresholding the original prediction
-    set expansion radius mm to control distance that inferred TTB boundary is initially grown
-    set pet_threshold_value to match designated value for ground truth contouring workflow
-    (eg PSMA PET SUV=3).
-    Includes option to avoid growing the label in certain
-    tissue types in the total segmentator label (ex PSMA avoid expanding into liver, could
-    include [2,3,5,21] to also avoid kidneys and urinary bladder)
-    For other organ values see "total" class map from:
-    https://github.com/wasserth/TotalSegmentator/blob/master/totalsegmentator/map_to_binary.py
-    Lastly, possible to include the "normal" tissue inferred label from the baseline example
-    algorithm and will similarly avoid expanding into this region"""
-    ttb_original_array = sitk.GetArrayFromImage(
-        ttb_image
-    )  # original TTB array for inpainting back voxels in certain tissues
-    ttb_expanded_image = expand_contract_label(
-        ttb_image, expansion_radius_mm
-    )  # expand inferred label with function above
-    ttb_expanded_array = sitk.GetArrayFromImage(ttb_expanded_image)  # convert to numpy array
-    pet_threshold_array = (
-        sitk.GetArrayFromImage(pet_image) >= pet_threshold_value
-    )  # get numpy array of PET image voxels above threshold value
-    ttb_rethresholded_array = np.logical_and(
-        ttb_expanded_array, pet_threshold_array
-    )  # remove expanded TTB voxels below PET threshold
+    ttb_original_array = sitk.GetArrayFromImage(ttb_image)
+    ttb_expanded_image = expand_contract_label(ttb_image, expansion_radius_mm)
+    ttb_expanded_array = sitk.GetArrayFromImage(ttb_expanded_image)
+    pet_threshold_array = sitk.GetArrayFromImage(pt_image) >= suv_threshold
+    ttb_rethresholded_array = np.logical_and(ttb_expanded_array, pet_threshold_array)
 
-    # loop through total segmentator tissue #s and use original TTB prediction in those labels
-    totseg_multilabel = sitk.Resample(
-        totseg_multilabel, ttb_image, sitk.TranslationTransform(3), sitk.sitkNearestNeighbor, 0
-    )
-    totseg_multilabel_array = sitk.GetArrayFromImage(totseg_multilabel)
+    totseg_image = sitk.Resample(totseg_image, ttb_image, sitk.TranslationTransform(3), sitk.sitkNearestNeighbor, 0)
+    totseg_array = sitk.GetArrayFromImage(totseg_image)
     for totseg_value in totseg_non_expand_values:
-        # paint the original TTB prediction into the totseg tissue regions - probably of most relevance for PSMA liver VOI
-        ttb_rethresholded_array[totseg_multilabel_array == totseg_value] = ttb_original_array[
-            totseg_multilabel_array == totseg_value
-        ]
+        ttb_rethresholded_array[totseg_array == totseg_value] = ttb_original_array[totseg_array == totseg_value]
 
-    # check if inferred normal array is included and if so set TTB voxels to background
     if normal_image is not None:
         normal_array = sitk.GetArrayFromImage(normal_image)
         ttb_rethresholded_array[normal_array > 0] = 0
-    ttb_rethresholded_image = sitk.GetImageFromArray(
-        ttb_rethresholded_array.astype("int16")
-    )  # create output image & copy information
+
+    ttb_rethresholded_image = sitk.GetImageFromArray(ttb_rethresholded_array.astype("int16"))
     ttb_rethresholded_image.CopyInformation(ttb_image)
     return ttb_rethresholded_image
 
@@ -381,7 +420,7 @@ def refine_fdg_prediction_from_psma_prediction(
     in PSMA for the same anatomical class (based on TotalSegmentator labels).
     """
     tic = time.monotonic()
-    log.info("Starting final postprocessing")
+    log.info("Starting FDG refinement from PSMA prediction!")
 
     # Ensure the organs are in the same space as the predictions
     fdg_totseg_image = sitk.Resample(

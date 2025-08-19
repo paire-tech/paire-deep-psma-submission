@@ -12,8 +12,8 @@ from typer import Option, Typer
 
 from .config import settings
 from .inference import (
-    FDG_CONFIG,
-    PSMA_CONFIG,
+    FDG_ENSEMBLE_CONFIG,
+    PSMA_ENSEMBLE_CONFIG,
     execute_lesions_segmentation,
     execute_lesions_segmentation_ensemble,
     refine_fdg_prediction_from_psma_prediction,
@@ -85,7 +85,7 @@ def main(
             ct_image=data["psma_ct_image"],
             totseg_image=data["psma_organ_segmentation_image"],
             suv_threshold=data["psma_pt_suv_threshold"],
-            configs=[PSMA_CONFIG],
+            config=PSMA_ENSEMBLE_CONFIG,
             device=device,
         )
 
@@ -101,7 +101,7 @@ def main(
             ct_image=data["fdg_ct_image"],
             totseg_image=data["fdg_organ_segmentation_image"],
             suv_threshold=data["fdg_pt_suv_threshold"],
-            configs=[FDG_CONFIG],
+            config=FDG_ENSEMBLE_CONFIG,
             device=device,
         )
 

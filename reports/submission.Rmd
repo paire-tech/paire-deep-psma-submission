@@ -1,0 +1,86 @@
+---
+title: "**DEEP-PSMA Submission**"
+subtitle: "**Grand Challenge 2025**"
+author:
+  - Arthur Dujardin
+  - Paul Blanc-Durand
+date: \today 
+abstract: |
+  We present our submission to the DEEP-PSMA Grand Challenge, 
+  focusing on automated lesion detection in PSMA and FDG PET/CT imaging. 
+  Our approach leverages ensemble methods with nnUNet architectures, 
+  incorporating organ segmentation masks to improve lesion detection accuracy. 
+  We explore multiple preprocessing strategies including binary organ masks
+  and signed distance function (SDF) representations, 
+  demonstrating the potential of anatomical context in nuclear medicine imaging.
+output: 
+  pdf_document:
+    toc: no
+    toc_depth: 2
+    number_sections: yes
+    citation_package: biblatex
+    extra_dependencies: ["booktabs", "float"]
+bibliography: references.bib  
+link-citations: yes
+linkcolor: blue
+fig_caption: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+
+The DEEP-PSMA (Deep-learning Evaluation for Enhanced Prognostics - Prostate Specific Membrane Antigen) Grand Challenge addresses the critical need for automated lesion detection in dual-tracer PET/CT imaging. Prostate cancer diagnosis and staging increasingly relies on both PSMA PET/CT (for prostate-specific targeting) and FDG PET/CT (for metabolic activity assessment), creating a complex multi-modal analysis challenge.
+Our submission introduces an ensemble-based approach that leverages state-of-the-art nnUNet @DBLP:journals/corr/abs-1809-10486  architectures enhanced with anatomical context through organ segmentation masks. This approach aims to improve lesion detection accuracy by incorporating spatial relationships between lesions and surrounding anatomical structures.
+
+# Methodology
+
+## Architecture and Ensemble Strategy
+
+Our approach employs ensemble methods combining multiple nnUNet variants trained on different preprocessing strategies and architectural configurations. The ensemble design addresses the inherent variability in PET/CT imaging and leverages complementary strengths of different model configurations.
+
+## nnUNet Variants
+
+We employ ensemble methods combining multiple nnUNet variants trained on different preprocessing strategies. Our ensemble includes:
+
+1. **Standard nnUNet**: Baseline configuration with default hyperparameters
+2. **nnUNetResEncUNetL**: Enhanced version with residual encoding and larger capacity
+3. **nnUNetResEncUNetM**: Medium-sized residual encoding variant
+
+The ensemble combines models trained on four distinct dataset configurations:
+
+1. **Baseline** (801/802): Standard PET/CT preprocessing without organ context
+2. **Organ-enhanced** (901/902): Integration of TotalSegmentator binary organ masks
+3. **Corrected** (911/912): Manually corrected annotations with organ context
+4. **SDF-enhanced** (921/922): Signed distance function representation with sigmoid smoothing
+
+# Data Preprocessing
+
+For baseline datasets, we apply standard nnUNet preprocessing: PET images normalized by SUV threshold, CT images resampled to PET resolution and clipped to 5th/95th percentiles, followed by mean/std normalization.
+
+For organ-enhanced datasets, we integrate TotalSegmentator organ segmentation masks alongside the standard preprocessing. The SDF-enhanced approach converts binary organ masks to signed distance functions, applying sigmoid smoothing with 10mm edge width to create softer boundaries while maintaining sharp lesion edges.
+
+# Training and Inference
+
+We use 5-fold cross-validation with different folds selected based on validation performance. 
+Standard training employs the default nnUNet trainer, while complex datasets (921/922) use an extended 250-epoch trainer. 
+All training is performed on CUDA devices with mixed precision optimization.
+
+Our inference pipeline processes PSMA and FDG images sequentially, with PSMA predictions used to refine FDG results. The ensemble combines predictions using optimized thresholds: PSMA uses balanced thresholds (0.5/0.5), while FDG employs asymmetric thresholds (0.33/0.66) to account for higher metabolic variability.
+Postprocessing includes 7mm morphological expansion and exclusion of specific organs (spleen, kidneys, liver, bladder, osteomedullar structures) to reduce false positives.
+
+# Discussion
+
+The integration of anatomical context represents a key innovation in our approach. By providing spatial information about surrounding organs, our models can better distinguish between true lesions and normal tissue variations. This is particularly valuable in regions where lesions may be adjacent to or within organs with similar intensity characteristics.
+Our multi-dataset ensemble strategy addresses the inherent variability in PET/CT imaging by leveraging complementary strengths of different preprocessing approaches. The baseline models provide robust performance on standard cases, while organ-enhanced models excel in anatomically complex scenarios.
+The SDF approach introduces a novel way to incorporate anatomical context while maintaining sharp lesion boundaries. By using sigmoid smoothing on signed distance functions, we create softer organ representations that may improve performance in boundary regions without compromising lesion detection accuracy.
+
+In addition, the PET mask (PET > SUV threshold) could be used as input to the model to improve the detection of lesions in the PET image.
+This is something we wanted to explore but did not have time to implement.
+
+# References
+
+\printbibliography[heading=none]
+\def\printbibliography{}

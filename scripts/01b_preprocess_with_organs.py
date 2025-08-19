@@ -168,7 +168,7 @@ def main() -> None:
 
     print()
     pbar = tqdm(dataset_files, total=len(dataset_files), desc=f"Preprocessing {args.tracer_name}")
-    with Parallel(n_jobs=args.workers) as parallel:
+    with Parallel(n_jobs=args.num_workers) as parallel:
         parallel(delayed(process_case)(data, dataset_name, use_pt_mask=args.pt_mask, use_sdf=args.sdf) for data in pbar)
 
     # Setup nnUNet required dataset.json file
@@ -202,7 +202,7 @@ def main() -> None:
             "-c",
             "3d_fullres",
             "-np",
-            str(args.workers),
+            str(args.num_workers),
             "--verify_dataset_integrity",
         ],
         check=True,
@@ -242,7 +242,7 @@ def parse_args() -> Namespace:
         help="Add the PT > SUV threshold mask as a channel in the input (PT, CT, PT > SUV threshold, ...organs).",
     )
     parser.add_argument(
-        "--workers",
+        "--num-workers",
         type=int,
         default=10,
         help="Number of workers to use for parallel processing.",

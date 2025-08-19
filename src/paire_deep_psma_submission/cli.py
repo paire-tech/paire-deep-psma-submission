@@ -14,7 +14,6 @@ from .config import settings
 from .inference import (
     FDG_ENSEMBLE_CONFIG,
     PSMA_ENSEMBLE_CONFIG,
-    execute_lesions_segmentation,
     execute_lesions_segmentation_ensemble,
     refine_fdg_prediction_from_psma_prediction,
 )

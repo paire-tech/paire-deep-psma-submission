@@ -278,8 +278,6 @@ def execute_multiple_folds_lesions_segmentation(
         if tracer_name == "PSMA":
             log.info("Using majority voting for PSMA with %d models", len(list_preds))
             preds_array = majority_vote_onehot(preds_array, 3)
-            # preds_array, _ = stats.mode(preds_array, axis=0, keepdims=False)  # majority voting
-
         else:
             log.info("Using maximal voting for FDG with %d models", len(list_preds))
         preds_array = np.argmax(preds_array, axis=0)  # maximalist voting
@@ -295,7 +293,7 @@ def execute_multiple_folds_lesions_segmentation(
     pred_ttb_label = sitk.GetImageFromArray(pred_ttb_ar)
     pred_ttb_label.CopyInformation(pred_image)
 
-    pred_norm_image = sitk.GetImageFromArray(preds_array)
+    pred_norm_image = sitk.GetImageFromArray(pred_norm_image)
     pred_norm_image.CopyInformation(pred_image)
 
     return pred_ttb_label, pred_norm_image

@@ -67,7 +67,7 @@ def main(
     # Load the model only once
     # model = load_model(weights_dir, device=device)
     REFINE_TTB_LABEL = True
-    REFINE_FDG_BASED_ON_PSMA = True
+    REFINE_FDG_BASED_ON_PSMA = False
 
     iter_data = iter_grand_challenge_data if input_format == "gc" else partial(iter_csv_data, input_csv=input_csv)
     for data in iter_data(input_dir=input_dir, output_dir=output_dir):

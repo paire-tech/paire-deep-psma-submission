@@ -192,7 +192,7 @@ def execute_multiple_folds_lesions_segmentation(
     list_path_to_pth_for_tracer: list = [],  # ...or "checkpoint_final.pth"
     tracer_name: str = "PSMA",
 ) -> tuple[sitk.Image, sitk.Image]:
-    pt_image = crop_sitk_to_mask(pt_image, pt_image > 0.05)  # in suv -> crop it
+    # pt_image = crop_sitk_to_mask(pt_image, pt_image > 0.05)  # in suv -> crop it
 
     ct_image = sitk.Resample(ct_image, pt_image, sitk.TranslationTransform(3), sitk.sitkLinear, -1000)
     organs_image_resampled = sitk.Resample(
@@ -201,7 +201,7 @@ def execute_multiple_folds_lesions_segmentation(
     organs_image_resampled = sitk.ChangeLabel(organs_image_resampled, ORGANS_MAPPING)
     pt_image = pt_image / suv_threshold
 
-    # list_probabilities = []
+    list_probabilities = []
     list_preds = []
     for checkpoint in list_path_to_pth_for_tracer:
         *_, plan, arch = str(checkpoint).split("/")[-3].split("__")  # nnUNetTrainer__nnUNetResEncUNetLPlans__3d_fullres
@@ -253,28 +253,30 @@ def execute_multiple_folds_lesions_segmentation(
                     "0",
                     "-nps",
                     "0",
-                    # "--save_probabilities",
+                    "--save_probabilities",
                 ],
                 check=True,
             )
 
             pred_image = sitk.ReadImage(output_dir / "deep-psma.nii.gz")
             pred_data = sitk.GetArrayFromImage(pred_image)
-            # probabilities = np.load(output_dir / "deep-psma.npz")["probabilities"]
-            # list_probabilities.append(probabilities)  # 3, C, H, W
-            list_preds.append(pred_data)
-    # mean_probabilities = np.stack(list_probabilities, axis=0)
-    # mean_probabilities = np.mean(mean_probabilities, axis=0)
-    # if tracer_name == "FDG":
-    #    pred_ttb_ar = (mean_probabilities[1, ...] > 0.33).astype("int8")
-    # pred_norm_ar = (mean_probabilities[2, ...] > 0.66).astype("int8")
-    # else:
-    #    pred_ttb_ar = (mean_probabilities[1, ...] > 0.5).astype("int8")
-    #    pred_norm_ar = (mean_probabilities[2, ...] > 0.5).astype("int8")
-    preds_array = np.stack(list_preds, axis=0)
-    if len(list_preds) > 1:
+            probabilities = np.load(output_dir / "deep-psma.npz")["probabilities"]
+            list_probabilities.append(probabilities)  # 3, C, H, W
+            # list_preds.append(pred_data)
+    mean_probabilities = np.stack(list_probabilities, axis=0)
+    mean_probabilities = np.mean(mean_probabilities, axis=0)
+    if tracer_name == "FDG":
+        pred_ttb_ar = (mean_probabilities[1, ...] > 0.33).astype("int8")
+        pred_norm_image = (mean_probabilities[2, ...] > 0.66).astype("int8")
+    else:
+        pred_ttb_ar = (mean_probabilities[1, ...] > 0.5).astype("int8")
+        pred_norm_image = (mean_probabilities[2, ...] > 0.5).astype("int8")
+
+    """
+    preds_array = np.stack(list_probabilities, axis=0)
+    if len(list_probabilities) > 1:
         if tracer_name == "PSMA":
-            log.info("Using majority voting for PSMA with %d models", len(list_preds))
+            log.info("Using majority voting for PSMA with %d models", len(list_probabilities))
             preds_array = majority_vote_onehot(preds_array, 3)
         else:
             log.info("Using maximal voting for FDG with %d models", len(list_preds))
@@ -283,7 +285,7 @@ def execute_multiple_folds_lesions_segmentation(
         preds_array = preds_array[0]
     pred_ttb_ar = (preds_array == 1).astype("int8")
     pred_norm_image = (preds_array == 2).astype("int8")
-
+    """
     # pt_array = sitk.GetArrayFromImage(pt_image)
     # tar = (pt_array >= 1.0).astype("int8")
 

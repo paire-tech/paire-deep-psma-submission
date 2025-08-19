@@ -172,10 +172,10 @@ def crop_sitk_to_mask(
         slice(zmin, zmin + zsize),
     )
     if except_in_dims is not None:
-        slicer = list(slicer)
+        slicer = list(slicer)  # type: ignore
         for dim in except_in_dims:
-            slicer[dim] = slice(None, None)
-        slicer = tuple(slicer)
+            slicer[dim] = slice(None, None)  # type: ignore
+        slicer = tuple(slicer)  # type: ignore
     cropped_sitk_obj = sitk_image[slicer]
     return cropped_sitk_obj
 

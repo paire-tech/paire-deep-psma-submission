@@ -90,24 +90,24 @@ def main(
         )
 
         psma_pred_image = sitk.Resample(
-            psma_pred_image,         # moving image
-            data["psma_pt_image"],                  # reference: defines Size/Spacing/Origin/Direction
-            sitk.Transform(3, sitk.sitkIdentity),                      # no geometric change, just regridding
-            sitk.sitkNearestNeighbor,   # labels -> NN
-            0,                          # defaultPixelValue for background
-            psma_pred_image.GetPixelID()
+            psma_pred_image,  # moving image
+            data["psma_pt_image"],  # reference: defines Size/Spacing/Origin/Direction
+            sitk.Transform(3, sitk.sitkIdentity),  # no geometric change, just regridding
+            sitk.sitkNearestNeighbor,  # labels -> NN
+            0,  # defaultPixelValue for background
+            psma_pred_image.GetPixelID(),
         )
 
         log.info("Resampled PSMA pred image to %s", psma_pred_image.GetSize())
         log.info("Resampled PSMA pred image to %s", data["psma_pt_image"].GetSize())
 
         psma_physiological_image = sitk.Resample(
-            psma_physiological_image,         # moving image
-            data["psma_pt_image"],                  # reference: defines Size/Spacing/Origin/Direction
-            sitk.Transform(3, sitk.sitkIdentity),                      # no geometric change, just regridding
-            sitk.sitkNearestNeighbor,   # labels -> NN
-            0,                          # defaultPixelValue for background
-            psma_physiological_image.GetPixelID()
+            psma_physiological_image,  # moving image
+            data["psma_pt_image"],  # reference: defines Size/Spacing/Origin/Direction
+            sitk.Transform(3, sitk.sitkIdentity),  # no geometric change, just regridding
+            sitk.sitkNearestNeighbor,  # labels -> NN
+            0,  # defaultPixelValue for background
+            psma_physiological_image.GetPixelID(),
         )
 
         # expand nnU-Net predicted disease region
@@ -141,21 +141,21 @@ def main(
         )
 
         fdg_pred_image = sitk.Resample(
-            fdg_pred_image,         # moving image
-            data["fdg_pt_image"],                  # reference: defines Size/Spacing/Origin/Direction
-            sitk.Transform(3, sitk.sitkIdentity),                      # no geometric change, just regridding
-            sitk.sitkNearestNeighbor,   # labels -> NN
-            0,                          # defaultPixelValue for background
-            fdg_pred_image.GetPixelID()
+            fdg_pred_image,  # moving image
+            data["fdg_pt_image"],  # reference: defines Size/Spacing/Origin/Direction
+            sitk.Transform(3, sitk.sitkIdentity),  # no geometric change, just regridding
+            sitk.sitkNearestNeighbor,  # labels -> NN
+            0,  # defaultPixelValue for background
+            fdg_pred_image.GetPixelID(),
         )
 
         fdg_physiological_image = sitk.Resample(
-            fdg_physiological_image,         # moving image
-            data["fdg_pt_image"],                  # reference: defines Size/Spacing/Origin/Direction
-            sitk.Transform(3, sitk.sitkIdentity),                      # no geometric change, just regridding
-            sitk.sitkNearestNeighbor,   # labels -> NN
-            0,                          # defaultPixelValue for background
-            psma_physiological_image.GetPixelID()
+            fdg_physiological_image,  # moving image
+            data["fdg_pt_image"],  # reference: defines Size/Spacing/Origin/Direction
+            sitk.Transform(3, sitk.sitkIdentity),  # no geometric change, just regridding
+            sitk.sitkNearestNeighbor,  # labels -> NN
+            0,  # defaultPixelValue for background
+            psma_physiological_image.GetPixelID(),
         )
 
         if REFINE_TTB_LABEL:

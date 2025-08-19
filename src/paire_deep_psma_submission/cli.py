@@ -1,4 +1,3 @@
-import glob
 import logging
 from functools import partial
 from pathlib import Path
@@ -11,11 +10,7 @@ from rich.progress import track
 from typer import Option, Typer
 
 from .config import settings
-from .inference import (
-    execute_multiple_folds_lesions_segmentation,
-    refine_fdg_prediction_from_psma_prediction,
-    refine_my_ttb_label,
-)
+from .inference import FDG_CONFIG, PSMA_CONFIG, execute_lesions_segmentation, refine_fdg_prediction_from_psma_prediction
 from .utils import find_file_path, load_json
 
 IMAGE_EXTS = [".nii.gz", ".mha", ".tif", ".tiff"]
@@ -60,59 +55,28 @@ def main(
         dir_okay=True,
         readable=True,
     ),
+    device: str = Option(
+        settings.DEVICE,
+        "--device",
+        "-d",
+        help="Device to use for inference. Options are 'cuda', 'cpu' or 'mps'.",
+    ),
 ) -> None:
     if input_format not in ["gc", "csv"]:
         raise ValueError(f"Unsupported input format: {input_format}. Supported formats are 'gc' and 'csv'.")
-
-    # Load the model only once
-    # model = load_model(weights_dir, device=device)
-    REFINE_TTB_LABEL = True
-    REFINE_FDG_BASED_ON_PSMA = True
 
     iter_data = iter_grand_challenge_data if input_format == "gc" else partial(iter_csv_data, input_csv=input_csv)
     for data in iter_data(input_dir=input_dir, output_dir=output_dir):
         # Run inference for PSMA inputs
         log.info("[PSMA] Running lesions segmentation inference")
-        list_path_to_psma_models = glob.glob("/app/nnUNet_results/*PSMA*/**/*.pth", recursive=True)
-
-        psma_pred_image, psma_physiological_image = execute_multiple_folds_lesions_segmentation(
+        psma_pred_image = execute_lesions_segmentation(
             pt_image=data["psma_pt_image"],
             ct_image=data["psma_ct_image"],
-            total_segmentator_image=data["psma_organ_segmentation_image"],
+            totseg_image=data["psma_organ_segmentation_image"],
             suv_threshold=data["psma_pt_suv_threshold"],
-            list_path_to_pth_for_tracer=list_path_to_psma_models,
-            tracer_name="PSMA",
+            config=PSMA_CONFIG,
+            device=device,
         )
-
-        psma_pred_image = sitk.Resample(
-            psma_pred_image,  # moving image
-            data["psma_pt_image"],  # reference: defines Size/Spacing/Origin/Direction
-            sitk.Transform(3, sitk.sitkIdentity),  # no geometric change, just regridding
-            sitk.sitkNearestNeighbor,  # labels -> NN
-            0,  # defaultPixelValue for background
-            psma_pred_image.GetPixelID(),
-        )
-
-        psma_physiological_image = sitk.Resample(
-            psma_physiological_image,  # moving image
-            data["psma_pt_image"],  # reference: defines Size/Spacing/Origin/Direction
-            sitk.Transform(3, sitk.sitkIdentity),  # no geometric change, just regridding
-            sitk.sitkNearestNeighbor,  # labels -> NN
-            0,  # defaultPixelValue for background
-            psma_physiological_image.GetPixelID(),
-        )
-
-        # expand nnU-Net predicted disease region
-        if REFINE_TTB_LABEL:
-            psma_pred_image = refine_my_ttb_label(
-                ttb_image=psma_pred_image,
-                pet_image=data["psma_pt_image"],
-                totseg_multilabel=data["psma_organ_segmentation_image"],
-                expansion_radius_mm=5.0,
-                pet_threshold_value=data["psma_pt_suv_threshold"],
-                totseg_non_expand_values=[1, 2, 3, 5, 21],
-                normal_image=psma_physiological_image,
-            )
 
         pred_path = Path(data["psma_pred_path"])
         pred_path.parent.mkdir(parents=True, exist_ok=True)
@@ -121,55 +85,22 @@ def main(
 
         # Run inference for FDG inputs
         log.info("[FDG ] Running lesions segmentation inference")
-        list_path_to_fdg_models = glob.glob("/app/nnUNet_results/*FDG*/**/*.pth", recursive=True)
-
-        fdg_pred_image, fdg_physiological_image = execute_multiple_folds_lesions_segmentation(
+        fdg_pred_image = execute_lesions_segmentation(
             pt_image=data["fdg_pt_image"],
             ct_image=data["fdg_ct_image"],
-            total_segmentator_image=data["fdg_organ_segmentation_image"],
+            totseg_image=data["fdg_organ_segmentation_image"],
             suv_threshold=data["fdg_pt_suv_threshold"],
-            list_path_to_pth_for_tracer=list_path_to_fdg_models,
-            tracer_name="FDG",
+            config=FDG_CONFIG,
+            device=device,
         )
 
-        fdg_pred_image = sitk.Resample(
-            fdg_pred_image,  # moving image
-            data["fdg_pt_image"],  # reference: defines Size/Spacing/Origin/Direction
-            sitk.Transform(3, sitk.sitkIdentity),  # no geometric change, just regridding
-            sitk.sitkNearestNeighbor,  # labels -> NN
-            0,  # defaultPixelValue for background
-            fdg_pred_image.GetPixelID(),
+        fdg_pred_image = refine_fdg_prediction_from_psma_prediction(
+            fdg_pt_image=data["fdg_pt_image"],
+            fdg_pred_image=fdg_pred_image,
+            fdg_totseg_image=data["fdg_organ_segmentation_image"],
+            psma_pred_image=psma_pred_image,
+            psma_totseg_image=data["psma_organ_segmentation_image"],
         )
-
-        fdg_physiological_image = sitk.Resample(
-            fdg_physiological_image,  # moving image
-            data["fdg_pt_image"],  # reference: defines Size/Spacing/Origin/Direction
-            sitk.Transform(3, sitk.sitkIdentity),  # no geometric change, just regridding
-            sitk.sitkNearestNeighbor,  # labels -> NN
-            0,  # defaultPixelValue for background
-            psma_physiological_image.GetPixelID(),
-        )
-
-        if REFINE_TTB_LABEL:
-            fdg_pred_image = refine_my_ttb_label(
-                ttb_image=fdg_pred_image,
-                pet_image=data["fdg_pt_image"],
-                totseg_multilabel=data["fdg_organ_segmentation_image"],
-                expansion_radius_mm=5.0,
-                pet_threshold_value=data["fdg_pt_suv_threshold"],
-                totseg_non_expand_values=[1, 2, 3, 5, 21, 90],
-                normal_image=fdg_physiological_image,
-            )
-
-        # NOTE: It appears this does not improve the performances
-        if REFINE_FDG_BASED_ON_PSMA:
-            fdg_pred_image = refine_fdg_prediction_from_psma_prediction(
-                fdg_pt_image=data["fdg_pt_image"],
-                fdg_pred_image=fdg_pred_image,
-                fdg_totseg_image=data["fdg_organ_segmentation_image"],
-                psma_pred_image=psma_pred_image,
-                psma_totseg_image=data["psma_organ_segmentation_image"],
-            )
 
         pred_path = Path(data["fdg_pred_path"])
         pred_path.parent.mkdir(parents=True, exist_ok=True)

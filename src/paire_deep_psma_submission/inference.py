@@ -204,7 +204,7 @@ def execute_lesions_segmentation_ensemble(
     organs_image = sitk.ChangeLabel(organs_image, ORGANS_MAPPING)
     pt_image = pt_image / suv_threshold
 
-    with TemporaryDirectory(dir=Path.cwd(), prefix="tmp_") as tmp_dir:
+    with TemporaryDirectory(prefix="tmp_") as tmp_dir:
         input_dir = Path(tmp_dir, "input")
         output_dir = Path(tmp_dir, "output")
         Path(input_dir).mkdir(parents=True, exist_ok=True)
@@ -234,7 +234,7 @@ def execute_lesions_segmentation(
     organs_image = sitk.ChangeLabel(organs_image, ORGANS_MAPPING)
     pt_image = pt_image / suv_threshold
 
-    with TemporaryDirectory(dir=Path.cwd(), prefix="tmp_") as tmp_dir:
+    with TemporaryDirectory(prefix="tmp_") as tmp_dir:
         input_dir = Path(tmp_dir, "input")
         output_dir = Path(tmp_dir, "output")
         Path(input_dir).mkdir(parents=True, exist_ok=True)

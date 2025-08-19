@@ -100,6 +100,13 @@ def main(
             tracer_name="PSMA",
         )
 
+        psma_pred_image = sitk.Resample(
+            psma_pred_image, data["psma_pt_image"], sitk.TranslationTransform(3), sitk.sitkNearestNeighbor, 0
+        )
+        psma_physiological_image = sitk.Resample(
+            psma_physiological_image, data["psma_pt_image"], sitk.TranslationTransform(3), sitk.sitkNearestNeighbor, 0
+        )
+
         # expand nnU-Net predicted disease region
         if REFINE_TTB_LABEL:
             psma_pred_image = refine_my_ttb_label(
@@ -138,6 +145,13 @@ def main(
                 psma_pred_image=psma_pred_image,
                 psma_organ_segmentation_image=psma_organ_segmentation_image,
             )
+
+        psma_pred_image = sitk.Resample(
+            fdg_pred_image, data["fdg_pt_image"], sitk.TranslationTransform(3), sitk.sitkNearestNeighbor, 0
+        )
+        psma_physiological_image = sitk.Resample(
+            fdg_physiological_image, data["fdg_pt_image"], sitk.TranslationTransform(3), sitk.sitkNearestNeighbor, 0
+        )
 
         if REFINE_TTB_LABEL:
             fdg_pred_image = refine_my_ttb_label(

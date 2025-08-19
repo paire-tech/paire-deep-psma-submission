@@ -162,22 +162,22 @@ ORGANS_MAPPING = {
 PSMA_ENSEMBLE_CONFIG: EnsembleConfig = {
     "configs": [
         # --- 801 ---
-        {
-            "id": "nnUNet-PSMA-801-fold0",  # <- Original baseline
-            "tracer_name": "PSMA",
-            "dataset_id": 801,
-            "plan": "nnUNetPlans",
-            "trainer": "nnUNetTrainer",
-            "config": "3d_fullres",
-            "fold": 0,
-            "checkpoint": "checkpoint_final.pth",  # There is no 'checkpoint_best.pth' for this model!
-            "preprocessing": {
-                "pt": True,
-                "ct": True,
-                "organs": False,
-            },
-            "weight": 1.0,
-        },
+        # {
+        #     "id": "nnUNet-PSMA-801-fold0",  # <- Baseline from organizers
+        #     "tracer_name": "PSMA",
+        #     "dataset_id": 801,
+        #     "plan": "nnUNetPlans",
+        #     "trainer": "nnUNetTrainer",
+        #     "config": "3d_fullres",
+        #     "fold": 0,
+        #     "checkpoint": "checkpoint_final.pth",  # !!!
+        #     "preprocessing": {
+        #         "pt": True,
+        #         "ct": True,
+        #         "organs": False,
+        #     },
+        #     "weight": 1.0,
+        # },
         {
             "id": "nnUNetResEncUNetL-PSMA-801-fold0",  # <- Ok
             "tracer_name": "PSMA",
@@ -253,15 +253,31 @@ PSMA_ENSEMBLE_CONFIG: EnsembleConfig = {
 FDG_ENSEMBLE_CONFIG: EnsembleConfig = {
     "configs": [
         # --- 802 ---
+        # {
+        #     "id": "nnUNet-FDG-802",  # <- Baseline from organizers
+        #     "tracer_name": "FDG",
+        #     "dataset_id": 802,
+        #     "plan": "nnUNetPlans",
+        #     "trainer": "nnUNetTrainer",
+        #     "config": "3d_fullres",
+        #     "fold": 0,
+        #     "checkpoint": "checkpoint_final.pth",  # !!!
+        #     "preprocessing": {
+        #         "pt": True,
+        #         "ct": True,
+        #         "organs": False,
+        #     },
+        #     "weight": 3.0,
+        # },
         {
-            "id": "nnUNet-FDG-802",  # <- Original baseline
+            "id": "nnUNetResEncUNetL-FDG-802",  # <- Ok
             "tracer_name": "FDG",
             "dataset_id": 802,
-            "plan": "nnUNetPlans",
+            "plan": "nnUNetResEncUNetLPlans",
             "trainer": "nnUNetTrainer",
             "config": "3d_fullres",
             "fold": 0,
-            "checkpoint": "checkpoint_final.pth",  # There is no 'checkpoint_best.pth' for this model!
+            "checkpoint": "checkpoint_best.pth",
             "preprocessing": {
                 "pt": True,
                 "ct": True,
@@ -269,22 +285,6 @@ FDG_ENSEMBLE_CONFIG: EnsembleConfig = {
             },
             "weight": 1.0,
         },
-        # {
-        #     "id": "nnUNetResEncUNetL-FDG-802", # <- Ok
-        #     "tracer_name": "FDG",
-        #     "dataset_id": 802,
-        #     "plan": "nnUNetResEncUNetLPlans",
-        #     "trainer": "nnUNetTrainer",
-        #     "config": "3d_fullres",
-        #     "fold": 0,
-        #     "checkpoint": "checkpoint_best.pth",
-        #     "preprocessing": {
-        #         "pt": True,
-        #         "ct": True,
-        #         "organs": False,
-        #     },
-        #     "weight": 1.0,
-        # },
         # --- 902 ---
         # {
         #     "id": "nnUNet-FDG-902",  # <- Bof
@@ -368,22 +368,22 @@ FDG_ENSEMBLE_CONFIG: EnsembleConfig = {
         #     },
         #     "weight": 1.0,
         # },
-        # {
-        #     "id": "nnUNetResEncUNetM-FDG-922-fold2",  # <- 'Good' on its validation set, poor performances on Preliminary Validation set
-        #     "tracer_name": "FDG",
-        #     "dataset_id": 922,
-        #     "plan": "nnUNetResEncUNetMPlans",
-        #     "trainer": "nnUNetTrainer_250epochs",
-        #     "config": "3d_fullres",
-        #     "fold": 2,
-        #     "checkpoint": "checkpoint_best.pth",
-        #     "preprocessing": {
-        #         "pt": True,
-        #         "ct": True,
-        #         "organs": "sdf_mask",
-        #     },
-        #     "weight": 1.0,
-        # },
+        {
+            "id": "nnUNetResEncUNetM-FDG-922-fold2",  # <- 'Good' on its validation set, poor performances on Preliminary Validation set
+            "tracer_name": "FDG",
+            "dataset_id": 922,
+            "plan": "nnUNetResEncUNetMPlans",
+            "trainer": "nnUNetTrainer_250epochs",
+            "config": "3d_fullres",
+            "fold": 2,
+            "checkpoint": "checkpoint_best.pth",
+            "preprocessing": {
+                "pt": True,
+                "ct": True,
+                "organs": "sdf_mask",
+            },
+            "weight": 1.0,
+        },
     ],
     "ttb_threshold": 0.33,
     "normal_threshold": 0.66,

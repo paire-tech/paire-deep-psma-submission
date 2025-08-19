@@ -11,7 +11,13 @@ from rich.progress import track
 from typer import Option, Typer
 
 from .config import settings
-from .inference import FDG_CONFIG, PSMA_CONFIG, execute_lesions_segmentation, refine_fdg_prediction_from_psma_prediction
+from .inference import (
+    FDG_CONFIG,
+    PSMA_CONFIG,
+    execute_lesions_segmentation,
+    execute_lesions_segmentation_ensemble,
+    refine_fdg_prediction_from_psma_prediction,
+)
 from .utils import find_file_path, load_json
 
 IMAGE_EXTS = [".nii.gz", ".mha", ".tif", ".tiff"]
@@ -88,12 +94,12 @@ def main(
     for data in iter_data(input_dir=input_dir, output_dir=output_dir):
         # Run inference for PSMA inputs
         log.info("[PSMA] Running lesions segmentation inference")
-        psma_pred_image = execute_lesions_segmentation(
+        psma_pred_image = execute_lesions_segmentation_ensemble(
             pt_image=data["psma_pt_image"],
             ct_image=data["psma_ct_image"],
             totseg_image=data["psma_organ_segmentation_image"],
             suv_threshold=data["psma_pt_suv_threshold"],
-            config=PSMA_CONFIG,
+            configs=[PSMA_CONFIG],
             device=device,
         )
 
@@ -104,12 +110,12 @@ def main(
 
         # Run inference for FDG inputs
         log.info("[FDG ] Running lesions segmentation inference")
-        fdg_pred_image = execute_lesions_segmentation(
+        fdg_pred_image = execute_lesions_segmentation_ensemble(
             pt_image=data["fdg_pt_image"],
             ct_image=data["fdg_ct_image"],
             totseg_image=data["fdg_organ_segmentation_image"],
             suv_threshold=data["fdg_pt_suv_threshold"],
-            config=FDG_CONFIG,
+            configs=[FDG_CONFIG],
             device=device,
         )
         if postprocess_fdg_based_on_psma_classes:

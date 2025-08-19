@@ -1,9 +1,11 @@
+import json
 import logging
+import os
 import subprocess
 import time
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Literal, Optional, Sequence, TypedDict, Union
+from typing import Any, Dict, Literal, Optional, Sequence, TypedDict, Union, overload
 
 import numpy as np
 import SimpleITK as sitk
@@ -27,6 +29,7 @@ class Config(TypedDict):
     fold: int
     checkpoint: str
     preprocessing: PreprocessingConfig
+    weight: float  # Only used for ensemble
 
 
 ORGANS_MAPPING = {
@@ -158,12 +161,13 @@ PSMA_CONFIG: Config = {
     "trainer": "nnUNetTrainer_250epochs",
     "config": "3d_fullres",
     "fold": 2,
-    "checkpoint": "checkpoint_final.pth",
+    "checkpoint": "checkpoint_best.pth",
     "preprocessing": {
         "pt": True,
         "ct": True,
         "organs": "sdf_mask",
     },
+    "weight": 1.0,
 }
 
 FDG_CONFIG: Config = {
@@ -174,46 +178,100 @@ FDG_CONFIG: Config = {
     "trainer": "nnUNetTrainer_250epochs",
     "config": "3d_fullres",
     "fold": 2,
-    "checkpoint": "checkpoint_final.pth",
+    "checkpoint": "checkpoint_best.pth",
     "preprocessing": {
         "pt": True,
         "ct": True,
         "organs": "sdf_mask",
     },
+    "weight": 1.0,
 }
 
+EXPANSION_RADIUS_MM = 7.0
 PSMA_TTB_EXPANSION_IGNORED_ORGAN_IDS = [1, 2, 3, 5, 21]
 FDG_TTB_EXPANSION_IGNORED_ORGAN_IDS = [1, 2, 3, 5, 21, 90]
 
 
-# WIP!
 def execute_lesions_segmentation_ensemble(
     pt_image: sitk.Image,
     ct_image: sitk.Image,
-    organs_image: sitk.Image,
+    totseg_image: sitk.Image,
     suv_threshold: float,
     *,
     configs: Sequence[Config],
+    ttb_threshold: float = 0.5,
+    normal_threshold: float = 0.5,
     device: str = "cuda",
 ) -> sitk.Image:
     log.info("Starting lesions segmentation ensemble!")
 
-    log.info("Preprocessing inputs...")
-    ct_image = sitk.Resample(ct_image, pt_image, sitk.TranslationTransform(3), sitk.sitkLinear, -1000)
-    organs_image = sitk.Resample(organs_image, pt_image, sitk.TranslationTransform(3), sitk.sitkNearestNeighbor)
-    organs_image = sitk.ChangeLabel(organs_image, ORGANS_MAPPING)
-    pt_image = pt_image / suv_threshold
+    scores: Optional[np.ndarray] = None
+    for config in configs:
+        probabilities = execute_lesions_segmentation(
+            pt_image=pt_image,
+            ct_image=ct_image,
+            totseg_image=totseg_image,
+            suv_threshold=suv_threshold,
+            config=config,
+            device=device,
+            return_probabilities=True,
+        )
+        probabilities *= config["weight"]
+        if scores is None:
+            scores = probabilities
+        else:
+            scores += probabilities
 
-    with TemporaryDirectory(prefix="tmp_") as tmp_dir:
-        input_dir = Path(tmp_dir, "input")
-        output_dir = Path(tmp_dir, "output")
-        Path(input_dir).mkdir(parents=True, exist_ok=True)
-        Path(output_dir).mkdir(parents=True, exist_ok=True)
+    if scores is None:
+        raise ValueError("No scores were computed!")
 
-        sitk.WriteImage(pt_image, input_dir / "deep-psma_0000.nii.gz")
-        sitk.WriteImage(ct_image, input_dir / "deep-psma_0001.nii.gz")
+    # Normalize the scores to [0, 1]
+    scores /= sum(config["weight"] for config in configs)
 
-    raise NotImplementedError
+    pred_ttb_array = (scores[1] > ttb_threshold).astype("uint8")
+    pred_normal_array = (scores[2] > normal_threshold).astype("uint8")
+
+    pred_ttb_image = sitk.GetImageFromArray(pred_ttb_array)
+    pred_normal_image = sitk.GetImageFromArray(pred_normal_array)
+
+    pred_ttb_image.CopyInformation(pt_image)
+    pred_normal_image.CopyInformation(pt_image)
+
+    return expand_and_contract_ttb_in_organs(
+        ttb_image=pred_ttb_image,
+        normal_image=pred_normal_image,
+        pt_image=pt_image,
+        organs_image=totseg_image,  # NOTE: We use the original TotalSegmentator organs image here!
+        expansion_radius_mm=EXPANSION_RADIUS_MM,
+        suv_threshold=suv_threshold,  # NOTE: Here the PET is not normalized by the SUV threshold!
+        ignored_organ_ids=[1, 2, 3, 5, 21],
+    )
+
+
+@overload
+def execute_lesions_segmentation(
+    pt_image: sitk.Image,
+    ct_image: sitk.Image,
+    totseg_image: sitk.Image,
+    suv_threshold: float,
+    *,
+    config: Config,
+    device: str = "cuda",
+    return_probabilities: Literal[True],
+) -> np.ndarray: ...
+
+
+@overload
+def execute_lesions_segmentation(
+    pt_image: sitk.Image,
+    ct_image: sitk.Image,
+    totseg_image: sitk.Image,
+    suv_threshold: float,
+    *,
+    config: Config,
+    device: str = "cuda",
+    return_probabilities: Literal[False] = False,
+) -> sitk.Image: ...
 
 
 def execute_lesions_segmentation(
@@ -225,7 +283,7 @@ def execute_lesions_segmentation(
     config: Config,
     device: str = "cuda",
     return_probabilities: bool = False,
-) -> sitk.Image:
+) -> Union[sitk.Image, np.ndarray]:
     log.info("Starting lesions segmentation!")
 
     log.info("Preprocessing inputs...")
@@ -275,45 +333,46 @@ def execute_lesions_segmentation(
             plan=config["plan"],
             fold=config["fold"],
             device=device,
-            save_probabilities=return_probabilities,
+            save_probabilities=True,
         )
 
         if return_probabilities:
-            scores = np.load(output_dir / "deep-psma.npz")
-            return scores["probabilities"]
+            data = np.load(output_dir / "deep-psma.npz")
+            return data["probabilities"]
 
         pred_image = sitk.ReadImage(output_dir / "deep-psma.nii.gz")
-
-    # pt_array = sitk.GetArrayFromImage(pt_image)
-    # tar = (pt_array >= 1.0).astype("int8")
-
-    # pred_ttb_ar = (sitk.GetArrayFromImage(pred_image) == 1).astype("int8")
-    # pred_norm_ar = (sitk.GetArrayFromImage(pred_image) == 2).astype("int8")
-
-    # # convert predicted TTB label to sitk format with spacing information to run grow/expansion function
-    # pred_ttb_label = sitk.GetImageFromArray(pred_ttb_ar)
-    # pred_ttb_label.CopyInformation(pred_image)
-
-    # expand nnU-Net predicted disease region
-    # pred_ttb_label_expanded = expand_contract_label(pred_ttb_label, distance=7.0)
-    # pred_ttb_ar_expanded = sitk.GetArrayFromImage(pred_ttb_label_expanded)
-    # pred_ttb_ar_expanded = np.logical_and(pred_ttb_ar_expanded > 0, tar > 0)
-    # output_ar = np.logical_and(pred_ttb_ar_expanded > 0, pred_norm_ar == 0).astype("int8")
-
-    # output_label = sitk.GetImageFromArray(output_ar)
-    # output_label.CopyInformation(pred_image)
-    # output_label = sitk.Resample(output_label, pt_image, sitk.TranslationTransform(3), sitk.sitkNearestNeighbor, 0)
-    # return output_label
 
     return expand_and_contract_ttb_in_organs(
         ttb_image=pred_image == 1,
         normal_image=pred_image == 2,
         pt_image=pt_image,
         organs_image=totseg_image,  # NOTE: We use the original TotalSegmentator organs image here!
-        expansion_radius_mm=7.0,
+        expansion_radius_mm=EXPANSION_RADIUS_MM,
         suv_threshold=1.0,  # NOTE: The PET is already normalized by the SUV threshold!
         ignored_organ_ids=[1, 2, 3, 5, 21],
     )
+
+
+def load_nnunet_plans(
+    dataset_id: int,
+    tracer_name: str,
+    trainer: str,
+    plan: str,
+    config: str,
+    fold: int,
+) -> Dict[str, Any]:
+    nnunet_results = os.environ["nnUNet_results"]
+    experiment_name = f"Dataset{dataset_id}_{tracer_name}_PET"
+    run_name = f"{trainer}_{plan}_{config}"
+    plans_path = Path(nnunet_results, experiment_name, run_name, f"fold_{fold}", "plans.json")
+    if not plans_path.exists():
+        raise FileNotFoundError(
+            f"Plans file not found: {plans_path}. Make sure the following nnUNet parameters are correct: "
+            f"dataset_id={dataset_id}, tracer_name={tracer_name}, trainer={trainer}, plan={plan}, config={config}, fold={fold}"
+        )
+
+    with open(plans_path, "r") as f:
+        return json.load(f)
 
 
 def nnunet_predict(

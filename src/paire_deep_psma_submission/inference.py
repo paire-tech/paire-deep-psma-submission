@@ -319,16 +319,16 @@ def execute_multiple_folds_lesions_segmentation(
     # else:
     #    pred_ttb_ar = (mean_probabilities[1, ...] > 0.5).astype("int8")
     #    pred_norm_ar = (mean_probabilities[2, ...] > 0.5).astype("int8")
-    pred_norm_ar = np.stack(list_preds, axis=0)
+    preds_array = np.stack(list_preds, axis=0)
     if tracer_name == "PSMA":
         log.info("Using majority voting for PSMA with %d models", len(list_preds))
-        pred_norm_ar, _ = stats.mode(pred_norm_ar, axis=0, keepdims=False)  # majority voting
+        preds_array, _ = stats.mode(preds_array, axis=0, keepdims=False)  # majority voting
 
     else:
         log.info("Using maximal voting for FDG with %d models", len(list_preds))
-        pred_norm_ar = np.argmax(pred_norm_ar, axis=0)  # maximalist voting
-    pred_ttb_ar = (pred_norm_ar == 1).astype("int8")
-    pred_norm_image = (pred_norm_ar == 2).astype("int8")
+        preds_array = np.argmax(preds_array, axis=0)  # maximalist voting
+    pred_ttb_ar = (preds_array == 1).astype("int8")
+    pred_norm_image = (preds_array == 2).astype("int8")
 
     pt_array = sitk.GetArrayFromImage(pt_image)
     tar = (pt_array >= 1.0).astype("int8")
@@ -337,19 +337,10 @@ def execute_multiple_folds_lesions_segmentation(
     pred_ttb_label = sitk.GetImageFromArray(pred_ttb_ar)
     pred_ttb_label.CopyInformation(pred_image)
 
-    pred_norm_image = sitk.GetImageFromArray(pred_norm_ar)
+    pred_norm_image = sitk.GetImageFromArray(preds_array)
     pred_norm_image.CopyInformation(pred_image)
 
-    pred_ttb_ar_expanded = sitk.GetArrayFromImage(pred_ttb_label)  # get array from TTB expanded sitk image
-    pred_ttb_ar_expanded = np.logical_and(pred_ttb_ar_expanded > 0, tar > 0)  # re-threshold expanded disease region
-
-    output_ar = np.logical_and(pred_ttb_ar_expanded > 0, pred_norm_ar == 0).astype("int8")
-
-    output_label = sitk.GetImageFromArray(output_ar)
-    output_label.CopyInformation(pred_image)
-    output_label = sitk.Resample(output_label, pt_image, sitk.TranslationTransform(3), sitk.sitkNearestNeighbor, 0)
-
-    return output_label, pred_norm_image
+    return pred_ttb_label, pred_norm_image
 
 
 def expand_contract_label(label: sitk.Image, distance: float = 5.0) -> sitk.Image:

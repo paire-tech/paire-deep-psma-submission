@@ -5,7 +5,7 @@ TESTS:=tests
 CMD:=uv run
 
 APP_NAME:=paire-deep-psma-submission
-APP_VERSION:=$(shell uv version --short)-nnunetv2
+APP_VERSION:=$(shell uv version --short)-nnunetv2-92x
 APP_IMAGE:=$(APP_NAME):$(APP_VERSION)
 
 -include .env
@@ -54,7 +54,6 @@ build: ## Build a production docker image
 .PHONY: run
 run: ## Run the production docker image
 	docker run --rm -it \
-		--user $(shell id -u):$(shell id -g) \
 		--gpus all \
 		-v $(INPUT_DIR):/input/:ro \
 		-v $(OUTPUT_DIR):/output/ \

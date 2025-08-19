@@ -245,10 +245,10 @@ def execute_lesions_segmentation(
                 organ_mask_image = sitk.Cast(organs_image == organ_id, sitk.sitkUInt8)
 
                 if config["preprocessing"]["organs"] == "binary_mask":
-                    log.info("Using binary mask for organ %d", organ_id)
+                    log.info("Preprocessing organ %d as binary mask", organ_id)
 
                 if config["preprocessing"]["organs"] == "sdf_mask":
-                    log.info("Using SDF mask for organ %d", organ_id)
+                    log.info("Preprocessing organ %d as SDF mask", organ_id)
                     # Use SignedMaurerDistanceMap to create a distance map for the organ mask
                     organ_mask_image = sitk.SignedMaurerDistanceMap(
                         organ_mask_image,

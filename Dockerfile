@@ -34,7 +34,8 @@ COPY --chown=appuser:appuser .python-version pyproject.toml uv.lock README.md sr
 # Setup directories / ckpt for nnUNet
 COPY --chown=appuser:appuser ./data/nnUNet_raw/ /app/nnUNet_raw/
 COPY --chown=appuser:appuser ./data/nnUNet_preprocessed/ /app/nnUNet_preprocessed/
-COPY --chown=appuser:appuser ./data/nnUNet_results/ /app/nnUNet_results/
+COPY --chown=appuser:appuser ./data/nnUNet_results/Dataset921_PSMA_PET/ /app/nnUNet_results/Dataset921_PSMA_PET/
+COPY --chown=appuser:appuser ./data/nnUNet_results/Dataset922_FDG_PET/ /app/nnUNet_results/Dataset922_FDG_PET/
 
 # Export requirements, using uv
 RUN if [ "$BUILD_MODE" = "dev" ]; then \

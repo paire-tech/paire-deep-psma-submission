@@ -275,6 +275,8 @@ def execute_multiple_folds_lesions_segmentation(
         else:
             log.info("Using maximal voting for FDG with %d models", len(list_preds))
         preds_array = np.argmax(preds_array, axis=0)  # maximalist voting
+    else:
+        preds_array = preds_array[0]
     pred_ttb_ar = (preds_array == 1).astype("int8")
     pred_norm_image = (preds_array == 2).astype("int8")
 

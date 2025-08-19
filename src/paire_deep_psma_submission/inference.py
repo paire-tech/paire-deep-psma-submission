@@ -19,6 +19,11 @@ class PreprocessingConfig(TypedDict):
     organs: Literal["sdf_mask", "binary_mask", False]
 
 
+class PostprocessingConfig(TypedDict):
+    expansion_radius_mm: float
+    ignored_organ_ids: Sequence[int]
+
+
 class Config(TypedDict):
     id: str
     tracer_name: str
@@ -30,12 +35,14 @@ class Config(TypedDict):
     checkpoint: str
     preprocessing: PreprocessingConfig
     weight: NotRequired[float]  # Only used for ensemble
+    postprocessing: NotRequired[PostprocessingConfig]
 
 
 class EnsembleConfig(TypedDict):
     configs: List[Config]
     ttb_threshold: float
     normal_threshold: float
+    postprocessing: NotRequired[PostprocessingConfig]
 
 
 ORGANS_MAPPING = {
@@ -159,6 +166,9 @@ ORGANS_MAPPING = {
     117: 0,  #  costal_cartilages             -> unspecified
 }
 
+DEFAULT_EXPANSION_RADIUS_MM = 7.0
+DEFAULT_IGNORED_ORGAN_IDS = [1, 2, 3, 5, 21]
+
 PSMA_ENSEMBLE_CONFIG: EnsembleConfig = {
     "configs": [
         # --- 801 ---
@@ -248,6 +258,10 @@ PSMA_ENSEMBLE_CONFIG: EnsembleConfig = {
     ],
     "ttb_threshold": 0.5,
     "normal_threshold": 0.5,
+    "postprocessing": {
+        "expansion_radius_mm": 7.0,
+        "ignored_organ_ids": [1, 2, 3, 5, 21, 90],
+    },
 }
 
 FDG_ENSEMBLE_CONFIG: EnsembleConfig = {
@@ -283,7 +297,7 @@ FDG_ENSEMBLE_CONFIG: EnsembleConfig = {
                 "ct": True,
                 "organs": False,
             },
-            "weight": 1.0,
+            "weight": 3.0,
         },
         # --- 902 ---
         # {
@@ -387,11 +401,11 @@ FDG_ENSEMBLE_CONFIG: EnsembleConfig = {
     ],
     "ttb_threshold": 0.33,
     "normal_threshold": 0.66,
+    "postprocessing": {
+        "expansion_radius_mm": 7.0,
+        "ignored_organ_ids": [1, 2, 3, 5, 21, 90],
+    },
 }
-
-EXPANSION_RADIUS_MM = 7.0
-PSMA_TTB_EXPANSION_IGNORED_ORGAN_IDS = [1, 2, 3, 5, 21]
-FDG_TTB_EXPANSION_IGNORED_ORGAN_IDS = [1, 2, 3, 5, 21, 90]
 
 
 def execute_lesions_segmentation_ensemble(
@@ -438,14 +452,17 @@ def execute_lesions_segmentation_ensemble(
     pred_ttb_image.CopyInformation(pt_image)
     pred_normal_image.CopyInformation(pt_image)
 
+    postprocessing_config = config.get("postprocessing", {})
+    expansion_radius_mm = postprocessing_config.get("expansion_radius_mm", DEFAULT_EXPANSION_RADIUS_MM)
+    ignored_organ_ids = postprocessing_config.get("ignored_organ_ids", DEFAULT_IGNORED_ORGAN_IDS)
     return expand_and_contract_ttb_in_organs(
         ttb_image=pred_ttb_image,
         normal_image=pred_normal_image,
         pt_image=pt_image,
         organs_image=totseg_image,  # NOTE: We use the original TotalSegmentator organs image here!
-        expansion_radius_mm=EXPANSION_RADIUS_MM,
+        expansion_radius_mm=expansion_radius_mm,
         suv_threshold=suv_threshold,  # NOTE: Here the PET is not normalized by the SUV threshold!
-        ignored_organ_ids=[1, 2, 3, 5, 21],
+        ignored_organ_ids=ignored_organ_ids,
     )
 
 
@@ -543,14 +560,17 @@ def execute_lesions_segmentation(
 
         pred_image = sitk.ReadImage(output_dir / "deep-psma.nii.gz")
 
+    postprocessing_config = config.get("postprocessing", {})
+    expansion_radius_mm = postprocessing_config.get("expansion_radius_mm", DEFAULT_EXPANSION_RADIUS_MM)
+    ignored_organ_ids = postprocessing_config.get("ignored_organ_ids", DEFAULT_IGNORED_ORGAN_IDS)
     return expand_and_contract_ttb_in_organs(
         ttb_image=pred_image == 1,
         normal_image=pred_image == 2,
         pt_image=pt_image,
         organs_image=totseg_image,  # NOTE: We use the original TotalSegmentator organs image here!
-        expansion_radius_mm=EXPANSION_RADIUS_MM,
+        expansion_radius_mm=expansion_radius_mm,
         suv_threshold=1.0,  # NOTE: The PET is already normalized by the SUV threshold!
-        ignored_organ_ids=[1, 2, 3, 5, 21],
+        ignored_organ_ids=ignored_organ_ids,
     )
 
 

@@ -146,7 +146,7 @@ def mask_to_distance_map(mask_sitk: sitk.Image) -> sitk.Image:
     return dist
 
 
-def crop_sitk_to_mask(sitk_image, sitk_mask, except_in_dims=None):
+def crop_sitk_to_mask(sitk_image: sitk.Image, sitk_mask: sitk.Image, except_in_dims: list[int] = None) -> sitk.Image:
     """crop a sitk image to its foreground
     will be cropped to volumes where sitk_mask > 0"""
     sitk_mask_connected = sitk.ConnectedComponent(sitk_mask)
@@ -177,6 +177,12 @@ def crop_sitk_to_mask(sitk_image, sitk_mask, except_in_dims=None):
         slicer = tuple(slicer)
     cropped_sitk_obj = sitk_image[slicer]
     return cropped_sitk_obj
+
+
+def majority_vote_onehot(preds: np.ndarray, n_classes: int) -> np.ndarray:
+    onehot = np.eye(n_classes, dtype=np.int32)[preds]  # (N, *S, K)
+    counts = onehot.sum(axis=0)  # (*S, K)
+    return counts.argmax(axis=-1)
 
 
 def execute_multiple_folds_lesions_segmentation(
@@ -270,7 +276,8 @@ def execute_multiple_folds_lesions_segmentation(
     if len(list_preds) > 1:
         if tracer_name == "PSMA":
             log.info("Using majority voting for PSMA with %d models", len(list_preds))
-            preds_array, _ = stats.mode(preds_array, axis=0, keepdims=False)  # majority voting
+            preds_array = majority_vote_onehot(preds_array, 3)
+            # preds_array, _ = stats.mode(preds_array, axis=0, keepdims=False)  # majority voting
 
         else:
             log.info("Using maximal voting for FDG with %d models", len(list_preds))

@@ -89,6 +89,13 @@ def main(
             tracer_name="PSMA",
         )
 
+        psma_pred_image = sitk.Resample(
+            psma_pred_image, data["psma_pt_image"], sitk.TranslationTransform(3), sitk.sitkNearestNeighbor, 0
+        )
+        psma_physiological_image = sitk.Resample(
+            psma_physiological_image, data["psma_pt_image"], sitk.TranslationTransform(3), sitk.sitkNearestNeighbor, 0
+        )
+
         # expand nnU-Net predicted disease region
         if REFINE_TTB_LABEL:
             psma_pred_image = refine_my_ttb_label(
@@ -117,6 +124,13 @@ def main(
             suv_threshold=data["fdg_pt_suv_threshold"],
             list_path_to_pth_for_tracer=list_path_to_fdg_models,
             tracer_name="FDG",
+        )
+
+        psma_pred_image = sitk.Resample(
+            fdg_pred_image, data["fdg_pt_image"], sitk.TranslationTransform(3), sitk.sitkNearestNeighbor, 0
+        )
+        psma_physiological_image = sitk.Resample(
+            fdg_physiological_image, data["fdg_pt_image"], sitk.TranslationTransform(3), sitk.sitkNearestNeighbor, 0
         )
 
         if REFINE_TTB_LABEL:

@@ -186,36 +186,6 @@ PSMA_TTB_EXPANSION_IGNORED_ORGAN_IDS = [1, 2, 3, 5, 21]
 FDG_TTB_EXPANSION_IGNORED_ORGAN_IDS = [1, 2, 3, 5, 21, 90]
 
 
-# WIP!
-def execute_lesions_segmentation_ensemble(
-    pt_image: sitk.Image,
-    ct_image: sitk.Image,
-    organs_image: sitk.Image,
-    suv_threshold: float,
-    *,
-    configs: Sequence[Config],
-    device: str = "cuda",
-) -> sitk.Image:
-    log.info("Starting lesions segmentation ensemble!")
-
-    log.info("Preprocessing inputs...")
-    ct_image = sitk.Resample(ct_image, pt_image, sitk.TranslationTransform(3), sitk.sitkLinear, -1000)
-    organs_image = sitk.Resample(organs_image, pt_image, sitk.TranslationTransform(3), sitk.sitkNearestNeighbor)
-    organs_image = sitk.ChangeLabel(organs_image, ORGANS_MAPPING)
-    pt_image = pt_image / suv_threshold
-
-    with TemporaryDirectory(prefix="tmp_") as tmp_dir:
-        input_dir = Path(tmp_dir, "input")
-        output_dir = Path(tmp_dir, "output")
-        Path(input_dir).mkdir(parents=True, exist_ok=True)
-        Path(output_dir).mkdir(parents=True, exist_ok=True)
-
-        sitk.WriteImage(pt_image, input_dir / "deep-psma_0000.nii.gz")
-        sitk.WriteImage(ct_image, input_dir / "deep-psma_0001.nii.gz")
-
-    raise NotImplementedError
-
-
 def execute_lesions_segmentation(
     pt_image: sitk.Image,
     ct_image: sitk.Image,
@@ -283,27 +253,6 @@ def execute_lesions_segmentation(
             return scores["probabilities"]
 
         pred_image = sitk.ReadImage(output_dir / "deep-psma.nii.gz")
-
-    # pt_array = sitk.GetArrayFromImage(pt_image)
-    # tar = (pt_array >= 1.0).astype("int8")
-
-    # pred_ttb_ar = (sitk.GetArrayFromImage(pred_image) == 1).astype("int8")
-    # pred_norm_ar = (sitk.GetArrayFromImage(pred_image) == 2).astype("int8")
-
-    # # convert predicted TTB label to sitk format with spacing information to run grow/expansion function
-    # pred_ttb_label = sitk.GetImageFromArray(pred_ttb_ar)
-    # pred_ttb_label.CopyInformation(pred_image)
-
-    # expand nnU-Net predicted disease region
-    # pred_ttb_label_expanded = expand_contract_label(pred_ttb_label, distance=7.0)
-    # pred_ttb_ar_expanded = sitk.GetArrayFromImage(pred_ttb_label_expanded)
-    # pred_ttb_ar_expanded = np.logical_and(pred_ttb_ar_expanded > 0, tar > 0)
-    # output_ar = np.logical_and(pred_ttb_ar_expanded > 0, pred_norm_ar == 0).astype("int8")
-
-    # output_label = sitk.GetImageFromArray(output_ar)
-    # output_label.CopyInformation(pred_image)
-    # output_label = sitk.Resample(output_label, pt_image, sitk.TranslationTransform(3), sitk.sitkNearestNeighbor, 0)
-    # return output_label
 
     return expand_and_contract_ttb_in_organs(
         ttb_image=pred_image == 1,

@@ -5,6 +5,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import numpy as np
+from scipy import stats
 import SimpleITK as sitk
 
 log = logging.getLogger(__name__)
@@ -221,6 +222,17 @@ def execute_lesions_segmentation(
     return output_label
 
 
+def mask_to_distance_map(mask_sitk: sitk.Image) -> sitk.Image:
+    mask = sitk.Cast(mask_sitk > 0, sitk.sitkUInt8)
+    dist = sitk.SignedMaurerDistanceMap(
+        mask,
+        insideIsPositive=True,
+        squaredDistance=False,
+        useImageSpacing=True,
+    )
+    return dist
+
+
 def execute_multiple_folds_lesions_segmentation(
     pt_image: sitk.Image,
     ct_image: sitk.Image,
@@ -236,7 +248,8 @@ def execute_multiple_folds_lesions_segmentation(
     organs_image_resampled = sitk.ChangeLabel(organs_image_resampled, ORGANS_MAPPING)
     pt_image = pt_image / suv_threshold
 
-    list_probabilities = []
+    # list_probabilities = []
+    list_preds = []
     for checkpoint in list_path_to_pth_for_tracer:
         *_, plan, arch = str(checkpoint).split("/")[-3].split("__")  # nnUNetTrainer__nnUNetResEncUNetLPlans__3d_fullres
         fold = str(checkpoint).split("/")[-2][-1]  # fold0
@@ -254,6 +267,15 @@ def execute_multiple_folds_lesions_segmentation(
             if dataset_id.startswith("9"):
                 for i in [1, 2, 3, 4, 5, 6, 7, 8]:
                     organ_mask_image = sitk.Cast(organs_image_resampled == i, sitk.sitkUInt8)
+                    if dataset_id.startswith("92"):
+                        organ_mask_image = mask_to_distance_map(organ_mask_image)
+                        # noramlize organ_mask_image to 0-1
+                        organ_mask_data = sitk.GetArrayFromImage(organ_mask_image)
+                        organ_mask_data /= 2.275830678197542
+                        # sigmoid
+                        organ_mask_data = 1 / (1 + np.exp(-organ_mask_data))
+                        organ_mask_image = sitk.GetImageFromArray(organ_mask_data)
+                        organ_mask_image.CopyInformation(organs_image_resampled)
                     sitk.WriteImage(organ_mask_image, input_dir / f"deep-psma_{i + 1:04d}.nii.gz")
 
             subprocess.run(
@@ -277,22 +299,34 @@ def execute_multiple_folds_lesions_segmentation(
                     "0",
                     "-nps",
                     "0",
-                    "--save_probabilities",
+                    # "--save_probabilities",
                 ],
                 check=True,
             )
 
             pred_image = sitk.ReadImage(output_dir / "deep-psma.nii.gz")
-            probabilities = np.load(output_dir / "deep-psma.npz")["probabilities"]
-            list_probabilities.append(probabilities)  # 3, C, H, W
-    mean_probabilities = np.stack(list_probabilities, axis=0)
-    mean_probabilities = np.mean(mean_probabilities, axis=0)
-    if tracer_name == "FDG":
-        pred_ttb_ar = (mean_probabilities[1, ...] > 0.33).astype("int8")
-        pred_norm_ar = (mean_probabilities[2, ...] > 0.66).astype("int8")
+            pred_data = sitk.GetArrayFromImage(pred_image)
+            # probabilities = np.load(output_dir / "deep-psma.npz")["probabilities"]
+            # list_probabilities.append(probabilities)  # 3, C, H, W
+            list_preds.append(pred_data)
+    # mean_probabilities = np.stack(list_probabilities, axis=0)
+    # mean_probabilities = np.mean(mean_probabilities, axis=0)
+    # if tracer_name == "FDG":
+    #    pred_ttb_ar = (mean_probabilities[1, ...] > 0.33).astype("int8")
+    # pred_norm_ar = (mean_probabilities[2, ...] > 0.66).astype("int8")
+    # else:
+    #    pred_ttb_ar = (mean_probabilities[1, ...] > 0.5).astype("int8")
+    #    pred_norm_ar = (mean_probabilities[2, ...] > 0.5).astype("int8")
+    pred_norm_ar = np.stack(list_preds, axis=0)
+    if tracer_name == "PSMA":
+        log.info("Using majority voting for PSMA with %d models", len(list_preds))
+        pred_norm_ar, _ = stats.mode(pred_norm_ar, axis=0, keepdims=False)  # majority voting
+
     else:
-        pred_ttb_ar = (mean_probabilities[1, ...] > 0.5).astype("int8")
-        pred_norm_ar = (mean_probabilities[2, ...] > 0.5).astype("int8")
+        log.info("Using maximal voting for FDG with %d models", len(list_preds))
+        pred_norm_ar = np.argmax(pred_norm_ar, axis=0)  # maximalist voting
+    pred_ttb_ar = (pred_norm_ar == 1).astype("int8")
+    pred_norm_image = (pred_norm_ar == 2).astype("int8")
 
     pt_array = sitk.GetArrayFromImage(pt_image)
     tar = (pt_array >= 1.0).astype("int8")

@@ -161,8 +161,76 @@ ORGANS_MAPPING = {
 
 PSMA_ENSEMBLE_CONFIG: EnsembleConfig = {
     "configs": [
+        # --- 801 ---
         {
-            "id": "nnUNet-FDG-921",
+            "id": "nnUNet-PSMA-801-fold0",  # <- Original baseline
+            "tracer_name": "PSMA",
+            "dataset_id": 801,
+            "plan": "nnUNetPlans",
+            "trainer": "nnUNetTrainer",
+            "config": "3d_fullres",
+            "fold": 0,
+            "checkpoint": "checkpoint_final.pth",  # There is no 'checkpoint_best.pth' for this model!
+            "preprocessing": {
+                "pt": True,
+                "ct": True,
+                "organs": False,
+            },
+            "weight": 1.0,
+        },
+        {
+            "id": "nnUNetResEncUNetL-PSMA-801-fold0",  # <- Ok
+            "tracer_name": "PSMA",
+            "dataset_id": 801,
+            "plan": "nnUNetResEncUNetLPlans",
+            "trainer": "nnUNetTrainer",
+            "config": "3d_fullres",
+            "fold": 0,
+            "checkpoint": "checkpoint_best.pth",
+            "preprocessing": {
+                "pt": True,
+                "ct": True,
+                "organs": False,
+            },
+            "weight": 1.0,
+        },
+        # --- 901 ---
+        {
+            "id": "nnUNet-PSMA-901-fold0",  # <- Good
+            "tracer_name": "PSMA",
+            "dataset_id": 901,
+            "plan": "nnUNetPlans",
+            "trainer": "nnUNetTrainer",
+            "config": "3d_fullres",
+            "fold": 0,
+            "checkpoint": "checkpoint_best.pth",
+            "preprocessing": {
+                "pt": True,
+                "ct": True,
+                "organs": "binary_mask",
+            },
+            "weight": 1.0,
+        },
+        # --- 911 ---
+        {
+            "id": "nnUNetResEncUNetM-PSMA-911-fold3",  # <- Good
+            "tracer_name": "PSMA",
+            "dataset_id": 911,
+            "plan": "nnUNetResEncUNetMPlans",
+            "trainer": "nnUNetTrainer",
+            "config": "3d_fullres",
+            "fold": 3,
+            "checkpoint": "checkpoint_best.pth",
+            "preprocessing": {
+                "pt": True,
+                "ct": True,
+                "organs": "binary_mask",
+            },
+            "weight": 1.0,
+        },
+        # --- 921 ---
+        {
+            "id": "nnUNetResEncUNetM-PSMA-921-fold2",  # <- Good
             "tracer_name": "PSMA",
             "dataset_id": 921,
             "plan": "nnUNetResEncUNetMPlans",
@@ -176,7 +244,7 @@ PSMA_ENSEMBLE_CONFIG: EnsembleConfig = {
                 "organs": "sdf_mask",
             },
             "weight": 1.0,
-        }
+        },
     ],
     "ttb_threshold": 0.5,
     "normal_threshold": 0.5,
@@ -184,22 +252,138 @@ PSMA_ENSEMBLE_CONFIG: EnsembleConfig = {
 
 FDG_ENSEMBLE_CONFIG: EnsembleConfig = {
     "configs": [
+        # --- 802 ---
         {
-            "id": "nnUNet-FDG-922",
+            "id": "nnUNet-FDG-802",  # <- Original baseline
             "tracer_name": "FDG",
-            "dataset_id": 922,
+            "dataset_id": 802,
+            "plan": "nnUNetPlans",
+            "trainer": "nnUNetTrainer",
+            "config": "3d_fullres",
+            "fold": 0,
+            "checkpoint": "checkpoint_final.pth",  # There is no 'checkpoint_best.pth' for this model!
+            "preprocessing": {
+                "pt": True,
+                "ct": True,
+                "organs": False,
+            },
+            "weight": 1.0,
+        },
+        # {
+        #     "id": "nnUNetResEncUNetL-FDG-802", # <- Ok
+        #     "tracer_name": "FDG",
+        #     "dataset_id": 802,
+        #     "plan": "nnUNetResEncUNetLPlans",
+        #     "trainer": "nnUNetTrainer",
+        #     "config": "3d_fullres",
+        #     "fold": 0,
+        #     "checkpoint": "checkpoint_best.pth",
+        #     "preprocessing": {
+        #         "pt": True,
+        #         "ct": True,
+        #         "organs": False,
+        #     },
+        #     "weight": 1.0,
+        # },
+        # --- 902 ---
+        # {
+        #     "id": "nnUNet-FDG-902",  # <- Bof
+        #     "tracer_name": "FDG",
+        #     "dataset_id": 902,
+        #     "plan": "nnUNetPlans",
+        #     "trainer": "nnUNetTrainer",
+        #     "config": "3d_fullres",
+        #     "fold": 0,
+        #     "checkpoint": "checkpoint_best.pth",
+        #     "preprocessing": {
+        #         "pt": True,
+        #         "ct": True,
+        #         "organs": "binary_mask",
+        #     },
+        #     "weight": 1.0,
+        # },
+        # --- 912 ---
+        # {
+        #     "id": "nnUNet-FDG-912-fold1",  # <- Bof
+        #     "tracer_name": "FDG",
+        #     "dataset_id": 912,
+        #     "plan": "nnUNetPlans",
+        #     "trainer": "nnUNetTrainer",
+        #     "config": "3d_fullres",
+        #     "fold": 1,
+        #     "checkpoint": "checkpoint_best.pth",
+        #     "preprocessing": {
+        #         "pt": True,
+        #         "ct": True,
+        #         "organs": "binary_mask",
+        #     },
+        #     "weight": 1.0,
+        # },
+        # {
+        #     "id": "nnUNetResEncUNetM-FDG-912-fold3",  # <- Horrible
+        #     "tracer_name": "FDG",
+        #     "dataset_id": 912,
+        #     "plan": "nnUNetResEncUNetMPlans",
+        #     "trainer": "nnUNetTrainer",
+        #     "config": "3d_fullres",
+        #     "fold": 3,
+        #     "checkpoint": "checkpoint_best.pth",
+        #     "preprocessing": {
+        #         "pt": True,
+        #         "ct": True,
+        #         "organs": "binary_mask",
+        #     },
+        #     "weight": 1.0,
+        # },
+        {
+            "id": "nnUNetResEncUNetM-FDG-912-fold4",  # <- 'Good' on its validation set
+            "tracer_name": "FDG",
+            "dataset_id": 912,
             "plan": "nnUNetResEncUNetMPlans",
             "trainer": "nnUNetTrainer_250epochs",
             "config": "3d_fullres",
-            "fold": 2,
+            "fold": 4,
             "checkpoint": "checkpoint_best.pth",
             "preprocessing": {
                 "pt": True,
                 "ct": True,
-                "organs": "sdf_mask",
+                "organs": "binary_mask",
             },
             "weight": 1.0,
-        }
+        },
+        # --- 922 ---
+        # {
+        #     "id": "nnUNet-FDG-922-fold3",  # <- Meh
+        #     "tracer_name": "FDG",
+        #     "dataset_id": 922,
+        #     "plan": "nnUNetPlans",
+        #     "trainer": "nnUNetTrainer",
+        #     "config": "3d_fullres",
+        #     "fold": 3,
+        #     "checkpoint": "checkpoint_best.pth",
+        #     "preprocessing": {
+        #         "pt": True,
+        #         "ct": True,
+        #         "organs": "sdf_mask",
+        #     },
+        #     "weight": 1.0,
+        # },
+        # {
+        #     "id": "nnUNetResEncUNetM-FDG-922-fold2",  # <- 'Good' on its validation set, poor performances on Preliminary Validation set
+        #     "tracer_name": "FDG",
+        #     "dataset_id": 922,
+        #     "plan": "nnUNetResEncUNetMPlans",
+        #     "trainer": "nnUNetTrainer_250epochs",
+        #     "config": "3d_fullres",
+        #     "fold": 2,
+        #     "checkpoint": "checkpoint_best.pth",
+        #     "preprocessing": {
+        #         "pt": True,
+        #         "ct": True,
+        #         "organs": "sdf_mask",
+        #     },
+        #     "weight": 1.0,
+        # },
     ],
     "ttb_threshold": 0.33,
     "normal_threshold": 0.66,

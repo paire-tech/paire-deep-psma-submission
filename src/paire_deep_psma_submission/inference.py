@@ -3,7 +3,7 @@ import subprocess
 import time
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Literal, Sequence, TypedDict, Union
+from typing import Literal, Optional, Sequence, TypedDict, Union
 
 import numpy as np
 import SimpleITK as sitk
@@ -181,6 +181,8 @@ FDG_CONFIG: Config = {
         "organs": "sdf_mask",
     },
 }
+PSMA_NON_EXPANDED_ORGANS = [1, 2, 3, 5, 21]
+FDG_NON_EXPANDED_ORGANS = [1, 2, 3, 5, 21]
 
 
 def execute_lesions_segmentation_ensemble(
@@ -280,27 +282,36 @@ def execute_lesions_segmentation(
 
         pred_image = sitk.ReadImage(output_dir / "deep-psma.nii.gz")
 
-    pt_array = sitk.GetArrayFromImage(pt_image)
-    tar = (pt_array >= 1.0).astype("int8")
+    # pt_array = sitk.GetArrayFromImage(pt_image)
+    # tar = (pt_array >= 1.0).astype("int8")
 
-    pred_ttb_ar = (sitk.GetArrayFromImage(pred_image) == 1).astype("int8")
-    pred_norm_ar = (sitk.GetArrayFromImage(pred_image) == 2).astype("int8")
+    # pred_ttb_ar = (sitk.GetArrayFromImage(pred_image) == 1).astype("int8")
+    # pred_norm_ar = (sitk.GetArrayFromImage(pred_image) == 2).astype("int8")
 
-    # convert predicted TTB label to sitk format with spacing information to run grow/expansion function
-    pred_ttb_label = sitk.GetImageFromArray(pred_ttb_ar)
-    pred_ttb_label.CopyInformation(pred_image)
+    # # convert predicted TTB label to sitk format with spacing information to run grow/expansion function
+    # pred_ttb_label = sitk.GetImageFromArray(pred_ttb_ar)
+    # pred_ttb_label.CopyInformation(pred_image)
 
     # expand nnU-Net predicted disease region
-    pred_ttb_label_expanded = expand_contract_label(pred_ttb_label, distance=7.0)
-    pred_ttb_ar_expanded = sitk.GetArrayFromImage(pred_ttb_label_expanded)
-    pred_ttb_ar_expanded = np.logical_and(pred_ttb_ar_expanded > 0, tar > 0)
-    output_ar = np.logical_and(pred_ttb_ar_expanded > 0, pred_norm_ar == 0).astype("int8")
+    # pred_ttb_label_expanded = expand_contract_label(pred_ttb_label, distance=7.0)
+    # pred_ttb_ar_expanded = sitk.GetArrayFromImage(pred_ttb_label_expanded)
+    # pred_ttb_ar_expanded = np.logical_and(pred_ttb_ar_expanded > 0, tar > 0)
+    # output_ar = np.logical_and(pred_ttb_ar_expanded > 0, pred_norm_ar == 0).astype("int8")
 
-    output_label = sitk.GetImageFromArray(output_ar)
-    output_label.CopyInformation(pred_image)
-    output_label = sitk.Resample(output_label, pt_image, sitk.TranslationTransform(3), sitk.sitkNearestNeighbor, 0)
+    # output_label = sitk.GetImageFromArray(output_ar)
+    # output_label.CopyInformation(pred_image)
+    # output_label = sitk.Resample(output_label, pt_image, sitk.TranslationTransform(3), sitk.sitkNearestNeighbor, 0)
+    # return output_label
 
-    return output_label
+    return expand_and_contract_ttb_in_organs(
+        ttb_image=pred_image == 1,
+        normal_image=pred_image == 2,
+        pt_image=pt_image,
+        organs_image=totseg_image,  # NOTE: We use the original TotalSegmentator organs image here!
+        expansion_radius_mm=7.0,
+        suv_threshold=1.0,  # NOTE: The PET is already normalized by the SUV threshold!
+        ignored_organ_ids=[1, 2, 3, 5, 21],
+    )
 
 
 def nnunet_predict(
@@ -365,7 +376,7 @@ def nnunet_ensemble(
     subprocess.run(args, check=True)
 
 
-def expand_contract_label(label_image: sitk.Image, distance: float) -> sitk.Image:
+def expand_contract_label(label_image: sitk.Image, expansion_radius_mm: float) -> sitk.Image:
     label_array = sitk.GetArrayFromImage(label_image)
     label_single = sitk.GetImageFromArray((label_array > 0).astype("int16"))
     label_single.CopyInformation(label_image)
@@ -374,31 +385,34 @@ def expand_contract_label(label_image: sitk.Image, distance: float) -> sitk.Imag
     distance_filter.SquaredDistanceOff()
     dmap = distance_filter.Execute(label_single)
     dmap_ar = sitk.GetArrayFromImage(dmap)
-    new_label_ar = (dmap_ar <= distance).astype("int16")
+    new_label_ar = (dmap_ar <= expansion_radius_mm).astype("int16")
     new_label = sitk.GetImageFromArray(new_label_ar)
     new_label.CopyInformation(label_image)
     return new_label
 
 
-def refine_predicted_ttb_image(
+def expand_and_contract_ttb_in_organs(
     ttb_image: sitk.Image,
     pt_image: sitk.Image,
-    totseg_image: sitk.Image,
+    organs_image: sitk.Image,
     suv_threshold: float,
+    *,
     expansion_radius_mm: float = 5.0,
-    totseg_non_expand_values: list = [1, 2, 3, 5, 21],
-    normal_image: sitk.Image | None = None,
+    ignored_organ_ids: Sequence[int] = (),
+    normal_image: Optional[sitk.Image] = None,
 ) -> sitk.Image:
     ttb_original_array = sitk.GetArrayFromImage(ttb_image)
     ttb_expanded_image = expand_contract_label(ttb_image, expansion_radius_mm)
     ttb_expanded_array = sitk.GetArrayFromImage(ttb_expanded_image)
-    pet_threshold_array = sitk.GetArrayFromImage(pt_image) >= suv_threshold
-    ttb_rethresholded_array = np.logical_and(ttb_expanded_array, pet_threshold_array)
+    pt_mask = sitk.GetArrayFromImage(pt_image) >= suv_threshold
+    ttb_rethresholded_array = np.logical_and(ttb_expanded_array, pt_mask)
 
-    totseg_image = sitk.Resample(totseg_image, ttb_image, sitk.TranslationTransform(3), sitk.sitkNearestNeighbor, 0)
-    totseg_array = sitk.GetArrayFromImage(totseg_image)
-    for totseg_value in totseg_non_expand_values:
-        ttb_rethresholded_array[totseg_array == totseg_value] = ttb_original_array[totseg_array == totseg_value]
+    # Ensure the organs are in the same space as the TTB image
+    organs_image = sitk.Resample(organs_image, ttb_image, sitk.TranslationTransform(3), sitk.sitkNearestNeighbor, 0)
+    organs_array = sitk.GetArrayFromImage(organs_image)
+    for organ_id in ignored_organ_ids:
+        organ_mask = organs_array == organ_id
+        ttb_rethresholded_array[organ_mask] = ttb_original_array[organ_mask]
 
     if normal_image is not None:
         normal_array = sitk.GetArrayFromImage(normal_image)

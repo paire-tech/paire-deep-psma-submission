@@ -9,13 +9,17 @@ description = "Submission for the DEEP PSMA Grand Challenge"
 readme = "README.md"
 requires-python = ">=3.11, <3.13"
 dependencies = [
-    "nnunetv2>=2.6.2",
-    "pandas>=2.3.1",
-    "pydantic>=2.11.7",
-    "pydantic-settings>=2.10.1",
-    "simpleitk>=2.5.2",
-    "torch==2.6.0", # Fix to use CUDA 12.4 in docker container
-    "typer>=0.16.0",
+    "nnunetv2",
+    "SimpleITK",
+    "numpy",
+    "scikit-image",
+    "scipy",
+    "pandas",
+    "matplotlib",
+    "python-dotenv",
+    "ipykernel",
+    "monai",
+    "triton>=3.2.0",
 ]
 
 [project.scripts]

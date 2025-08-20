@@ -5,18 +5,7 @@ import subprocess
 import time
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import (
-    Any,
-    Dict,
-    List,
-    Literal,
-    NotRequired,
-    Optional,
-    Sequence,
-    TypedDict,
-    Union,
-    overload,
-)
+from typing import Any, Dict, List, Literal, NotRequired, Optional, Sequence, TypedDict, Union, overload
 
 import numpy as np
 import SimpleITK as sitk
@@ -599,7 +588,7 @@ def execute_lesions_segmentation(
         use_pt_mask = config["preprocessing"].get("pt_mask", False)
         if use_pt_mask:
             log.info("Preprocessing PT mask")
-            pt_mask_image = sitk.Cast(pt_image > suv_threshold, sitk.sitkUInt8)
+            pt_mask_image = sitk.Cast(pt_image > 1.0, sitk.sitkUInt8)
             sitk.WriteImage(pt_mask_image, input_dir / "deep-psma_0002.nii.gz")
 
         if config["preprocessing"]["organs"]:

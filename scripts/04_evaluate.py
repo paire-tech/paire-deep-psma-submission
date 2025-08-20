@@ -45,13 +45,21 @@ def main() -> None:
         fdg_gt_path = Path(row["fdg_pt_ttb_path"]).resolve()
         fdg_pred_path = Path(row["fdg_pred_path"]).resolve()
 
-        print(f"[PSMA] Evaluating {psma_gt_path} and {psma_pred_path}")
-        psma_scores = compute_scores(psma_gt_path, psma_pred_path) if (psma_gt_path and psma_pred_path) else {}
-        print(f"       Scores: \t {' | '.join(f'{k}: {v:.4f}' for k, v in psma_scores.items())}")
+        try:
+            print(f"[PSMA] Evaluating {psma_gt_path} and {psma_pred_path}")
+            psma_scores = compute_scores(psma_gt_path, psma_pred_path) if (psma_gt_path and psma_pred_path) else {}
+            print(f"       Scores: \t {' | '.join(f'{k}: {v:.4f}' for k, v in psma_scores.items())}")
+        except Exception as e:
+            print(f"       Error: {e}")
+            psma_scores = {}
 
-        print(f"[FDG ] Evaluating {fdg_gt_path} and {fdg_pred_path}")
-        fdg_scores = compute_scores(fdg_gt_path, fdg_pred_path) if (fdg_gt_path and fdg_pred_path) else {}
-        print(f"       Scores: \t {' | '.join(f'{k}: {v:.4f}' for k, v in fdg_scores.items())}")
+        try:
+            print(f"[FDG ] Evaluating {fdg_gt_path} and {fdg_pred_path}")
+            fdg_scores = compute_scores(fdg_gt_path, fdg_pred_path) if (fdg_gt_path and fdg_pred_path) else {}
+            print(f"       Scores: \t {' | '.join(f'{k}: {v:.4f}' for k, v in fdg_scores.items())}")
+        except Exception as e:
+            print(f"       Error: {e}")
+            fdg_scores = {}
 
         result = {
             **{f"psma_{k}": v for k, v in psma_scores.items()},

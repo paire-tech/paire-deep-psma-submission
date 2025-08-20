@@ -27,6 +27,7 @@ log = logging.getLogger(__name__)
 class PreprocessingConfig(TypedDict):
     pt: Literal[True]
     ct: Literal[True]
+    pt_mask: bool
     organs: Literal["sdf_mask", "binary_mask", False]
 
 
@@ -195,6 +196,7 @@ PSMA_ENSEMBLE_CONFIG: EnsembleConfig = {
         #     "preprocessing": {
         #         "pt": True,
         #         "ct": True,
+        #         "pt_mask": False,
         #         "organs": False,
         #     },
         #     "weight": 1.0,
@@ -211,6 +213,7 @@ PSMA_ENSEMBLE_CONFIG: EnsembleConfig = {
             "preprocessing": {
                 "pt": True,
                 "ct": True,
+                "pt_mask": False,
                 "organs": False,
             },
             "weight": 1.0,
@@ -228,6 +231,7 @@ PSMA_ENSEMBLE_CONFIG: EnsembleConfig = {
         #     "preprocessing": {
         #         "pt": True,
         #         "ct": True,
+        #         "pt_mask": False,
         #         "organs": "binary_mask",
         #     },
         #     "weight": 1.0,
@@ -245,6 +249,7 @@ PSMA_ENSEMBLE_CONFIG: EnsembleConfig = {
             "preprocessing": {
                 "pt": True,
                 "ct": True,
+                "pt_mask": False,
                 "organs": "binary_mask",
             },
             "weight": 1.0,
@@ -262,6 +267,7 @@ PSMA_ENSEMBLE_CONFIG: EnsembleConfig = {
             "preprocessing": {
                 "pt": True,
                 "ct": True,
+                "pt_mask": False,
                 "organs": "sdf_mask",
             },
             "weight": 1.0,
@@ -290,6 +296,7 @@ FDG_ENSEMBLE_CONFIG: EnsembleConfig = {
         #     "preprocessing": {
         #         "pt": True,
         #         "ct": True,
+        #         "pt_mask": False,
         #         "organs": False,
         #     },
         #     "weight": 3.0,
@@ -306,6 +313,7 @@ FDG_ENSEMBLE_CONFIG: EnsembleConfig = {
             "preprocessing": {
                 "pt": True,
                 "ct": True,
+                "pt_mask": False,
                 "organs": False,
             },
             "weight": 2.0,
@@ -323,6 +331,7 @@ FDG_ENSEMBLE_CONFIG: EnsembleConfig = {
         #     "preprocessing": {
         #         "pt": True,
         #         "ct": True,
+        #         "pt_mask": False,
         #         "organs": "binary_mask",
         #     },
         #     "weight": 1.0,
@@ -340,6 +349,7 @@ FDG_ENSEMBLE_CONFIG: EnsembleConfig = {
         #     "preprocessing": {
         #         "pt": True,
         #         "ct": True,
+        #         "pt_mask": False,
         #         "organs": "binary_mask",
         #     },
         #     "weight": 1.0,
@@ -356,6 +366,7 @@ FDG_ENSEMBLE_CONFIG: EnsembleConfig = {
         #     "preprocessing": {
         #         "pt": True,
         #         "ct": True,
+        #         "pt_mask": False,
         #         "organs": "binary_mask",
         #     },
         #     "weight": 1.0,
@@ -372,6 +383,7 @@ FDG_ENSEMBLE_CONFIG: EnsembleConfig = {
             "preprocessing": {
                 "pt": True,
                 "ct": True,
+                "pt_mask": False,
                 "organs": "binary_mask",
             },
             "weight": 1.0,
@@ -389,6 +401,7 @@ FDG_ENSEMBLE_CONFIG: EnsembleConfig = {
         #     "preprocessing": {
         #         "pt": True,
         #         "ct": True,
+        #         "pt_mask": False,
         #         "organs": "sdf_mask",
         #     },
         #     "weight": 1.0,
@@ -405,6 +418,25 @@ FDG_ENSEMBLE_CONFIG: EnsembleConfig = {
             "preprocessing": {
                 "pt": True,
                 "ct": True,
+                "pt_mask": False,
+                "organs": "sdf_mask",
+            },
+            "weight": 1.0,
+        },
+        # --- 932 ---
+        {
+            "id": "nnUNetResEncUNetM-FDG-932-fold1",
+            "tracer_name": "FDG",
+            "dataset_id": 932,
+            "plan": "nnUNetResEncUNetMPlans",
+            "trainer": "nnUNetTrainer_250epochs",
+            "config": "3d_fullres",
+            "fold": 1,
+            "checkpoint": "checkpoint_best.pth",
+            "preprocessing": {
+                "pt": True,
+                "ct": True,
+                "pt_mask": True,
                 "organs": "sdf_mask",
             },
             "weight": 1.0,
@@ -464,12 +496,8 @@ def execute_lesions_segmentation_ensemble(
     pred_normal_image.CopyInformation(pt_image)
 
     postprocessing_config = config.get("postprocessing", {})
-    expansion_radius_mm = postprocessing_config.get(
-        "expansion_radius_mm", DEFAULT_EXPANSION_RADIUS_MM
-    )
-    ignored_organ_ids = postprocessing_config.get(
-        "ignored_organ_ids", DEFAULT_IGNORED_ORGAN_IDS
-    )
+    expansion_radius_mm = postprocessing_config.get("expansion_radius_mm", DEFAULT_EXPANSION_RADIUS_MM)
+    ignored_organ_ids = postprocessing_config.get("ignored_organ_ids", DEFAULT_IGNORED_ORGAN_IDS)
     return expand_and_contract_ttb_in_organs(
         ttb_image=pred_ttb_image,
         normal_image=pred_normal_image,
@@ -520,12 +548,8 @@ def execute_lesions_segmentation(
     log.info("Starting lesions segmentation!")
 
     log.info("Preprocessing inputs...")
-    ct_image = sitk.Resample(
-        ct_image, pt_image, sitk.TranslationTransform(3), sitk.sitkLinear, -1000
-    )
-    organs_image = sitk.Resample(
-        totseg_image, pt_image, sitk.TranslationTransform(3), sitk.sitkNearestNeighbor
-    )
+    ct_image = sitk.Resample(ct_image, pt_image, sitk.TranslationTransform(3), sitk.sitkLinear, -1000)
+    organs_image = sitk.Resample(totseg_image, pt_image, sitk.TranslationTransform(3), sitk.sitkNearestNeighbor)
     organs_image = sitk.ChangeLabel(organs_image, ORGANS_MAPPING)
     pt_image = pt_image / suv_threshold
 
@@ -538,9 +562,15 @@ def execute_lesions_segmentation(
         sitk.WriteImage(pt_image, input_dir / "deep-psma_0000.nii.gz")
         sitk.WriteImage(ct_image, input_dir / "deep-psma_0001.nii.gz")
 
+        use_pt_mask = config["preprocessing"].get("pt_mask", False)
+        if use_pt_mask:
+            log.info("Preprocessing PT mask")
+            pt_mask_image = sitk.Cast(pt_image > suv_threshold, sitk.sitkUInt8)
+            sitk.WriteImage(pt_mask_image, input_dir / "deep-psma_0002.nii.gz")
+
         if config["preprocessing"]["organs"]:
-            log.info("Preprocessing organs...")
-            for channel_idx, organ_id in enumerate([1, 2, 3, 4, 5, 6, 7, 8], start=2):
+            start_idx = 3 if use_pt_mask else 2
+            for channel_idx, organ_id in enumerate([1, 2, 3, 4, 5, 6, 7, 8], start=start_idx):
                 organ_mask_image = sitk.Cast(organs_image == organ_id, sitk.sitkUInt8)
 
                 if config["preprocessing"]["organs"] == "binary_mask":
@@ -555,14 +585,10 @@ def execute_lesions_segmentation(
                         squaredDistance=False,
                         useImageSpacing=True,
                     )
-                    organ_mask_image = 1 / (
-                        1 + sitk.Exp(-organ_mask_image / 2.275830678197542)
-                    )
+                    organ_mask_image = 1 / (1 + sitk.Exp(-organ_mask_image / 2.275830678197542))
                     organ_mask_image = sitk.Cast(organ_mask_image, sitk.sitkFloat32)
 
-                sitk.WriteImage(
-                    organ_mask_image, input_dir / f"deep-psma_{channel_idx:04d}.nii.gz"
-                )
+                sitk.WriteImage(organ_mask_image, input_dir / f"deep-psma_{channel_idx:04d}.nii.gz")
 
         nnunet_predict(
             input_dir=input_dir,
@@ -584,12 +610,8 @@ def execute_lesions_segmentation(
         pred_image = sitk.ReadImage(output_dir / "deep-psma.nii.gz")
 
     postprocessing_config = config.get("postprocessing", {})
-    expansion_radius_mm = postprocessing_config.get(
-        "expansion_radius_mm", DEFAULT_EXPANSION_RADIUS_MM
-    )
-    ignored_organ_ids = postprocessing_config.get(
-        "ignored_organ_ids", DEFAULT_IGNORED_ORGAN_IDS
-    )
+    expansion_radius_mm = postprocessing_config.get("expansion_radius_mm", DEFAULT_EXPANSION_RADIUS_MM)
+    ignored_organ_ids = postprocessing_config.get("ignored_organ_ids", DEFAULT_IGNORED_ORGAN_IDS)
     return expand_and_contract_ttb_in_organs(
         ttb_image=pred_image == 1,
         normal_image=pred_image == 2,
@@ -612,9 +634,7 @@ def load_nnunet_plans(
     nnunet_results = os.environ["nnUNet_results"]
     experiment_name = f"Dataset{dataset_id}_{tracer_name}_PET"
     run_name = f"{trainer}_{plan}_{config}"
-    plans_path = Path(
-        nnunet_results, experiment_name, run_name, f"fold_{fold}", "plans.json"
-    )
+    plans_path = Path(nnunet_results, experiment_name, run_name, f"fold_{fold}", "plans.json")
     if not plans_path.exists():
         raise FileNotFoundError(
             f"Plans file not found: {plans_path}. Make sure the following nnUNet parameters are correct: "
@@ -687,9 +707,7 @@ def nnunet_ensemble(
     subprocess.run(args, check=True)
 
 
-def expand_contract_label(
-    label_image: sitk.Image, expansion_radius_mm: float
-) -> sitk.Image:
+def expand_contract_label(label_image: sitk.Image, expansion_radius_mm: float) -> sitk.Image:
     label_array = sitk.GetArrayFromImage(label_image)
     label_single = sitk.GetImageFromArray((label_array > 0).astype("int16"))
     label_single.CopyInformation(label_image)
@@ -737,9 +755,7 @@ def expand_and_contract_ttb_in_organs(
         normal_array = sitk.GetArrayFromImage(normal_image)
         ttb_rethresholded_array[normal_array > 0] = 0
 
-    ttb_rethresholded_image = sitk.GetImageFromArray(
-        ttb_rethresholded_array.astype("int16")
-    )
+    ttb_rethresholded_image = sitk.GetImageFromArray(ttb_rethresholded_array.astype("int16"))
     ttb_rethresholded_image.CopyInformation(ttb_image)
     return ttb_rethresholded_image
 
@@ -798,9 +814,7 @@ def refine_fdg_prediction_from_psma_prediction(
         # Get class labels from TotalSegmentator for this lesion
         fdg_totseg_labels = np.unique(fdg_totseg_array[fdg_lesion_mask])
 
-        kept = any(
-            label in psma_totseg_labels for label in fdg_totseg_labels if label != 0
-        )
+        kept = any(label in psma_totseg_labels for label in fdg_totseg_labels if label != 0)
         volume = np.sum(fdg_lesion_mask) * np.prod(fdg_pred_image.GetSpacing()) / 1000
         # the idea is to remove lesions that are only in one total segmentators classes
         # that do not match any totalsegmentator of psma
@@ -815,9 +829,7 @@ def refine_fdg_prediction_from_psma_prediction(
             }
         )
 
-    volume_removed = sum(
-        stat["lesion_volume"] for stat in stats if not stat["lesion_kept"]
-    )
+    volume_removed = sum(stat["lesion_volume"] for stat in stats if not stat["lesion_kept"])
     num_removed_lesions = sum(1 for stat in stats if not stat["lesion_kept"])
     log.info(
         "FDG post-processing: %d lesions out of %d were removed (volume of %.2f mm3)",

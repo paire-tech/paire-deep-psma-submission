@@ -238,7 +238,7 @@ PSMA_ENSEMBLE_CONFIG: EnsembleConfig = {
             },
             "weight": 1.0,
         },
-        # --- 921 ---
+        # # --- 921 ---
         {
             "id": "nnUNetResEncUNetM-PSMA-921-fold2",  # <- Good
             "tracer_name": "PSMA",
@@ -349,22 +349,22 @@ FDG_ENSEMBLE_CONFIG: EnsembleConfig = {
         #     },
         #     "weight": 1.0,
         # },
-        # {
-        #     "id": "nnUNetResEncUNetM-FDG-912-fold4",  # <- 'Good' on its validation set
-        #     "tracer_name": "FDG",
-        #     "dataset_id": 912,
-        #     "plan": "nnUNetResEncUNetMPlans",
-        #     "trainer": "nnUNetTrainer_250epochs",
-        #     "config": "3d_fullres",
-        #     "fold": 4,
-        #     "checkpoint": "checkpoint_best.pth",
-        #     "preprocessing": {
-        #         "pt": True,
-        #         "ct": True,
-        #         "organs": "binary_mask",
-        #     },
-        #     "weight": 1.0,
-        # },
+        {
+            "id": "nnUNetResEncUNetM-FDG-912-fold4",  # <- 'Good' on its validation set
+            "tracer_name": "FDG",
+            "dataset_id": 912,
+            "plan": "nnUNetResEncUNetMPlans",
+            "trainer": "nnUNetTrainer_250epochs",
+            "config": "3d_fullres",
+            "fold": 4,
+            "checkpoint": "checkpoint_best.pth",
+            "preprocessing": {
+                "pt": True,
+                "ct": True,
+                "organs": "binary_mask",
+            },
+            "weight": 1.0,
+        },
         # --- 922 ---
         # {
         #     "id": "nnUNet-FDG-922-fold3",  # <- Meh
@@ -763,7 +763,7 @@ def refine_fdg_prediction_from_psma_prediction(
         volume = np.sum(fdg_lesion_mask) * np.prod(fdg_pred_image.GetSpacing()) / 1000
         # the idea is to remove lesions that are only in one total segmentators classes
         # that do not match any totalsegmentator of psma
-        if kept | (volume > 10.0) | (suvmax > 10):
+        if kept | (volume > 4.0) | (suvmax > 10):
             fdg_out_array[fdg_lesion_mask] = 1
 
         stats.append(

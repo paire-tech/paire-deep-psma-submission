@@ -39,7 +39,7 @@ COPY --chown=appuser:appuser ./data/nnUNet_results/Dataset921_PSMA_PET/ /app/nnU
 # FDG Ensembling
 COPY --chown=appuser:appuser ./data/nnUNet_results/Dataset802_FDG_PET/ /app/nnUNet_results/Dataset802_FDG_PET/
 # COPY --chown=appuser:appuser ./data/nnUNet_results/Dataset902_FDG_PET/ /app/nnUNet_results/Dataset902_FDG_PET/
-# COPY --chown=appuser:appuser ./data/nnUNet_results/Dataset912_FDG_PET/ /app/nnUNet_results/Dataset912_FDG_PET/
+COPY --chown=appuser:appuser ./data/nnUNet_results/Dataset912_FDG_PET/ /app/nnUNet_results/Dataset912_FDG_PET/
 COPY --chown=appuser:appuser ./data/nnUNet_results/Dataset922_FDG_PET/ /app/nnUNet_results/Dataset922_FDG_PET/
 
 RUN tree /app/nnUNet_results -L 2 --sort name

@@ -190,6 +190,9 @@ def main() -> None:
         "numTraining": len(dataset_files),
         "file_ending": ".nii.gz",
     }
+    if args.pt_mask:
+        dataset_info["channel_names"]["10"] = "noNorm"
+
     dataset_info_path = Path(NNUNET_RAW_DIR, dataset_name, "dataset.json")
     save_json(dataset_info, dataset_info_path)
 
@@ -303,7 +306,7 @@ def process_case(
         pt_mask_image = sitk.Cast(pt_image >= 1.0, sitk.sitkUInt8)
         sitk.WriteImage(pt_mask_image, images_tr_dir / f"{case_name}_0002.nii.gz")
 
-    start_idx = 2 if use_pt_mask else 1
+    start_idx = 3 if use_pt_mask else 2
     for channel_idx, organ_id in enumerate([1, 2, 3, 4, 5, 6, 7, 8], start=start_idx):
         organ_mask_image = sitk.Cast(organs_image == organ_id, sitk.sitkUInt8)
         if use_sdf:

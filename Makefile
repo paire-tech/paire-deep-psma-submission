@@ -5,7 +5,7 @@ TESTS:=tests
 CMD:=uv run
 
 APP_NAME:=paire-deep-psma-submission
-APP_VERSION:=$(shell uv version --short)-nnunetv2-ensemble-sm
+APP_VERSION:=$(shell uv version --short)-nnunetv2-ensemble-all2
 APP_IMAGE:=$(APP_NAME):$(APP_VERSION)
 
 -include .env

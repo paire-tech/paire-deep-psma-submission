@@ -185,7 +185,7 @@ def main() -> None:
         "file_ending": ".nii.gz",
     }
     if args.pt_mask:
-        dataset_info["channel_names"]["10"] = "noNorm"
+        dataset_info["channel_names"]["10"] = "noNorm"  # type: ignore[index]
 
     dataset_info_path = Path(NNUNET_RAW_DIR, dataset_name, "dataset.json")
     save_json(dataset_info, dataset_info_path)

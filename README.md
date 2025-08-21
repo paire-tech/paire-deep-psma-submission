@@ -686,7 +686,7 @@ To build the docker container that will be used for the DEEP PSMA Grand Challeng
    make build
    ```
 
-2. **Download the model weights:** The model weights are not included in this repository. You need to obtain them and place them in the `weights/` directory. You can find the weights on S3.
+2. **Download the model weights:** The model weights are not included in this repository.
 
 ### How To Use
 
@@ -703,23 +703,21 @@ The docker container also supports additional arguments and options to customize
 | `INPUT_FORMAT`    | The format of the input data. Can be `gc` (Grand Challenge format) or `csv` (CSV file). | `gc`             |
 | `INPUT_DIR`       | The directory containing the input data.                                                | `/input`         |
 | `OUTPUT_DIR`      | The directory where the output data will be saved.                                      | `/output`        |
-| `WEIGHTS_DIR`     | The directory containing the model weights.                                             | `/opt/ml/model/` |
 | `DEVICE`          | The device to use for inference. Can be `auto`, `cpu` or `cuda`.                        | `cuda`           |
-| `MIXED_PRECISION` | Flag to enable mixed precision inference.                                               | `false`          |
 
 > [!NOTE]
 > **Grand Challenge format**: This is the default format used by the DEEP PSMA Grand Challenge. <br> > **CSV format**: This format expects a CSV file with the following columns: `{psma|fdg}_pt_path`, `{psma|fdg}_ct_path`, `{psma|fdg}_organ_segmentation_path`, and `{psma|fdg}_suv_threshold`. The paths should point to the respective files relative to the input directory.
 
 ### Evaluation
 
-You can quickly evaluate the performance of the model from the saved predictions mask using the `scripts/evaluate.py` script. This script will compute the Dice score and other metrics for the predictions:
+You can quickly evaluate the performance of the model from the saved predictions mask using the `scripts/04_evaluate.py` script. This script will compute the Dice score and other metrics for the predictions:
 
 ```bash
-python scripts/evaluate.py \
-    --input-dir /data/DEEP_PSMA_CHALLENGE_DATA/CHALLENGE_DATA/ \
-    --output-dir data/output/ \
-    --input-csv /data/DEEP_PSMA_CHALLENGE_DATA/CHALLENGE_DATA/challenge_data.csv \
-    --output-csv data/output/results.csv
+python scripts/04_evaluate.py \                       # Evaluate the performances of the model on precomputed predictions
+  --input-dir /path/to/DEEP_PSMA_CHALLENGE_DATA/ \    # Directory of the challenge data
+  --input-csv ./data/val_fold0.csv \                  # CSV containing specific cases to run inference on
+  --output-dir ./data/output/ \                       # Directory to save the predictions
+  --output-csv ./data/output/results.csv \            # CSV to save the results
 ```
 
 ### Submit Your Algorithm
@@ -772,9 +770,7 @@ The available options are:
 | `--input-format`    | The format of the input data. Can be `gc` (Grand Challenge format) or `csv` (CSV file). | `gc`             |
 | `--input-dir`       | The directory containing the input data.                                                | `/input`         |
 | `--output-dir`      | The directory where the output data will be saved.                                      | `/output`        |
-| `--weights-dir`     | The directory containing the model weights.                                             | `/opt/ml/model/` |
 | `--device`          | The device to use for inference. Can be `auto`, `cpu` or `cuda`.                        | `cuda`           |
-| `--mixed-precision` | Flag to enable mixed precision inference.                                               | `false`          |
 
 > [!NOTE]
 > These options can also be set through environment variables.

@@ -15,8 +15,8 @@ from .inference import (
     FDG_ENSEMBLE_CONFIG,
     PSMA_ENSEMBLE_CONFIG,
     execute_lesions_segmentation_ensemble,
-    refine_fdg_prediction_from_psma_prediction,
 )
+from .postprocessing import refine_fdg_prediction_from_psma_prediction
 from .utils import find_file_path, load_json
 
 IMAGE_EXTS = [".nii.gz", ".mha", ".tif", ".tiff"]

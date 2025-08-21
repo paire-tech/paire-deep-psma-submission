@@ -3,6 +3,7 @@ import logging
 import os
 import subprocess
 import time
+import math
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, Dict, List, Literal, NotRequired, Optional, Sequence, TypedDict, Union, overload
@@ -259,8 +260,8 @@ PSMA_ENSEMBLE_CONFIG: EnsembleConfig = {
     "ttb_threshold": 0.5,
     "normal_threshold": 0.5,
     "postprocessing": {
-        "expansion_radius_mm": 7.0,
-        "ignored_organ_ids": [1, 2, 3, 5, 21, 90],
+        "expansion_radius_mm": 5.0,
+        "ignored_organ_ids": [1, 2, 3, 5, 21],
     },
 }
 
@@ -284,10 +285,10 @@ FDG_ENSEMBLE_CONFIG: EnsembleConfig = {
         #     "weight": 3.0,
         # },
         {
-            "id": "nnUNetResEncUNetL-FDG-802",  # <- Ok
+            "id": "nnUNet-FDG-802",  # <- Ok
             "tracer_name": "FDG",
             "dataset_id": 802,
-            "plan": "nnUNetResEncUNetLPlans",
+            "plan": "nnUNetPlans",
             "trainer": "nnUNetTrainer",
             "config": "3d_fullres",
             "fold": 0,
@@ -298,6 +299,22 @@ FDG_ENSEMBLE_CONFIG: EnsembleConfig = {
                 "organs": False,
             },
             "weight": 2.0,
+        },
+        {
+            "id": "nnUNet-FDG-801",  # <- Ok
+            "tracer_name": "FDG",
+            "dataset_id": 802,
+            "plan": "nnUNetPlans",
+            "trainer": "nnUNetTrainer",
+            "config": "3d_fullres",
+            "fold": 1,
+            "checkpoint": "checkpoint_final.pth",
+            "preprocessing": {
+                "pt": True,
+                "ct": True,
+                "organs": False,
+            },
+            "weight": 1.0,
         },
         # --- 902 ---
         # {
@@ -399,10 +416,10 @@ FDG_ENSEMBLE_CONFIG: EnsembleConfig = {
             "weight": 1.0,
         },
     ],
-    "ttb_threshold": 0.33,
-    "normal_threshold": 0.66,
+    "ttb_threshold": 0.25,
+    "normal_threshold": 0.75,
     "postprocessing": {
-        "expansion_radius_mm": 7.0,
+        "expansion_radius_mm": 5.0,
         "ignored_organ_ids": [1, 2, 3, 5, 21, 90],
     },
 }
@@ -705,6 +722,20 @@ def expand_and_contract_ttb_in_organs(
     return ttb_rethresholded_image
 
 
+def predict_proba_once(x, means, stds, coef, intercept):
+    # x = [kept(0/1), suvmax, volume]
+    xn = [(xi - m) / s for xi, m, s in zip(x, means, stds)]
+    z = intercept + sum(c * xi for c, xi in zip(coef, xn))
+    return 1.0 / (1.0 + math.exp(-z))
+
+
+# Example with your frozen params
+# params = {...}  # from training step
+def predict_label(x, params, threshold=0.5):
+    p = predict_proba_once(x, params["means"], params["stds"], params["coef"], params["intercept"])
+    return int(p >= threshold)
+
+
 def refine_fdg_prediction_from_psma_prediction(
     fdg_pt_image: sitk.Image,
     fdg_pred_image: sitk.Image,
@@ -755,21 +786,37 @@ def refine_fdg_prediction_from_psma_prediction(
         suvmax = fdg_pt_array[fdg_lesion_mask].max()
         if not fdg_lesion_mask.any():
             continue
-
+        volume = np.sum(fdg_lesion_mask) * np.prod(fdg_pred_image.GetSpacing()) / 1000
         # Get class labels from TotalSegmentator for this lesion
         fdg_totseg_labels = np.unique(fdg_totseg_array[fdg_lesion_mask])
+        if (len(fdg_totseg_labels)) == 1 and (fdg_totseg_labels.sum() == 0):
+            is_predicted_true_positive = True
+        else:
+            is_in_psma = any(label in psma_totseg_labels for label in fdg_totseg_labels if label != 0)
+            logvolume = np.log(volume + 1)
+            if (len(fdg_totseg_labels)) == 1 and (fdg_totseg_labels.sum() == 0):
+                is_predicted_true_positive = True
+            else:
+                is_in_psma = any(label in psma_totseg_labels for label in fdg_totseg_labels if label != 0)
+                logvolume = np.log(volume + 1)
+                params = {
+                    "means": [0, 0, 0],
+                    "stds": [1, 1, 1],
+                    "coef": [3.345112414198748, 0.6979599985346014, 0.836256971157578],
+                    "intercept": -5.405821569685443,
+                }
 
-        kept = any(label in psma_totseg_labels for label in fdg_totseg_labels if label != 0)
-        volume = np.sum(fdg_lesion_mask) * np.prod(fdg_pred_image.GetSpacing()) / 1000
-        # the idea is to remove lesions that are only in one total segmentators classes
-        # that do not match any totalsegmentator of psma
-        if kept | (volume > 4.0) | (suvmax > 10):
+                is_predicted_true_positive = predict_label(
+                    [is_in_psma * 1.0, logvolume, suvmax],
+                    params,
+                    threshold=0.5,
+                )
+        if is_predicted_true_positive | (volume > 7.0):
             fdg_out_array[fdg_lesion_mask] = 1
-
         stats.append(
             {
                 "lesion_id": fdg_lesion_id,
-                "lesion_kept": kept,
+                "lesion_kept": is_predicted_true_positive,
                 "lesion_volume": volume,
             }
         )

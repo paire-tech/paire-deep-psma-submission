@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+- Updated the docs, fixed typos.
 - Add final submission with nnUNet ensembling and logistic refinement
 - Add submission with nnUNet ensembling
 - Do not use list in TTA as it make crash on the grand-challenge website

@@ -1,7 +1,7 @@
 import logging
 from functools import partial
 from pathlib import Path
-from typing import Generator, NotRequired, TypedDict, Union
+from typing import Any, Dict, Generator, Union
 
 import numpy as np
 import pandas as pd
@@ -28,20 +28,6 @@ app = Typer(
 )
 
 log = logging.getLogger(__name__)
-
-
-class DataDict(TypedDict):
-    psma_ct_path: str
-    psma_organ_segmentation_path: str
-    psma_pt_path: str
-    psma_pt_suv_threshold: float
-    psma_pred_path: str
-    fdg_ct_path: str
-    fdg_organ_segmentation_path: str
-    fdg_pt_path: str
-    fdg_pt_suv_threshold: float
-    fdg_pred_path: str
-    psma_to_fdg_registration: NotRequired[np.ndarray]
 
 
 @app.command()
@@ -117,15 +103,6 @@ def main(
             config=FDG_ENSEMBLE_CONFIG,
             device=device,
         )
-        if postprocess_fdg_based_on_psma_classes:
-            fdg_pred_image, psma_pred_image = final_postprocessing(
-                fdg_pt_image=fdg_pt_image,
-                fdg_pred_image=fdg_pred_image,
-                fdg_organ_segmentation_image=fdg_organ_segmentation_image,
-                psma_pt_image=psma_pt_image,
-                psma_pred_image=psma_pred_image,
-                psma_organ_segmentation_image=psma_organ_segmentation_image,
-            )
 
         fdg_pred_image = refine_fdg_prediction_from_psma_prediction(
             fdg_pt_image=data["fdg_pt_image"],
@@ -144,39 +121,37 @@ def main(
 def iter_grand_challenge_data(
     input_dir: Union[str, Path],
     output_dir: Union[str, Path],
-) -> Generator[DataDict, None, None]:
+) -> Generator[Dict[str, Any], None, None]:
     # Grand Challenge data have only one set of inputs, and the algorithm / docker is used for each set / exam
     input_dir = Path(input_dir)
     images_dir = input_dir / "images"
-    psma_ct_path = find_file_path(images_dir / "psma-ct", ext=IMAGE_EXTS)
+
+    psma_ct_image_path = find_file_path(images_dir / "psma-ct", ext=IMAGE_EXTS)
     psma_ct_image_organ_segmentation_path = find_file_path(images_dir / "psma-ct-organ-segmentation", ext=IMAGE_EXTS)
-    psma_pt_path = find_file_path(images_dir / "psma-pet-ga-68", ext=IMAGE_EXTS)
+    psma_pt_image_path = find_file_path(images_dir / "psma-pet-ga-68", ext=IMAGE_EXTS)
     psma_pt_suv_threshold_path = input_dir / "psma-pet-suv-threshold.json"
-    psma_pred_path = Path(output_dir, "images", "psma-pet-ttb", "output.mha")
-
-    fdg_ct_path = find_file_path(images_dir / "fdg-ct", ext=IMAGE_EXTS)
+    fdg_ct_image_path = find_file_path(images_dir / "fdg-ct", ext=IMAGE_EXTS)
     fdg_ct_image_organ_segmentation_path = find_file_path(images_dir / "fdg-ct-organ-segmentation", ext=IMAGE_EXTS)
-    fdg_pt_path = find_file_path(images_dir / "fdg-pet", ext=IMAGE_EXTS)
+    fdg_pt_image_path = find_file_path(images_dir / "fdg-pet", ext=IMAGE_EXTS)
     fdg_pt_suv_threshold_path = input_dir / "fdg-pet-suv-threshold.json"
-    fdg_pred_path = Path(output_dir, "images", "fdg-pet-ttb", "output.mha")
-
     psma_to_fdg_registration_path = input_dir / "psma-to-fdg-registration.json"
 
     psma_to_fdg_registration = load_json(psma_to_fdg_registration_path)["3d_affine_transform"]
     psma_to_fdg_registration = np.array(psma_to_fdg_registration, dtype=np.float32)
 
     yield {
-        "psma_ct_path": psma_ct_path.as_posix(),
-        "psma_organ_segmentation_path": psma_ct_image_organ_segmentation_path.as_posix(),
-        "psma_pt_path": psma_pt_path.as_posix(),
+        "psma_ct_image": sitk.ReadImage(psma_ct_image_path),
+        "psma_organ_segmentation_image": sitk.ReadImage(psma_ct_image_organ_segmentation_path),
+        "psma_pt_image": sitk.ReadImage(psma_pt_image_path),
         "psma_pt_suv_threshold": load_json(psma_pt_suv_threshold_path),
-        "psma_pred_path": psma_pred_path.as_posix(),
-        "fdg_ct_path": fdg_ct_path.as_posix(),
-        "fdg_organ_segmentation_path": fdg_ct_image_organ_segmentation_path.as_posix(),
-        "fdg_pt_path": fdg_pt_path.as_posix(),
+        "fdg_ct_image": sitk.ReadImage(fdg_ct_image_path),
+        "fdg_organ_segmentation_image": sitk.ReadImage(fdg_ct_image_organ_segmentation_path),
+        "fdg_pt_image": sitk.ReadImage(fdg_pt_image_path),
         "fdg_pt_suv_threshold": load_json(fdg_pt_suv_threshold_path),
-        "fdg_pred_path": fdg_pred_path.as_posix(),
         "psma_to_fdg_registration": psma_to_fdg_registration,
+        # forward the path to the predictions output
+        "psma_pred_path": Path(output_dir, "images", "psma-pet-ttb", "output.mha"),
+        "fdg_pred_path": Path(output_dir, "images", "fdg-pet-ttb", "output.mha"),
     }
 
 
@@ -203,19 +178,16 @@ def iter_csv_data(
 
     for _, row in track(df.iterrows(), total=len(df), description="Processing"):
         yield {
-            "psma_ct_path": row["psma_ct_path"],
-            "psma_organ_segmentation_path": row["psma_organ_segmentation_path"],
-            "psma_pt_path": row["psma_pt_path"],
+            "psma_ct_image": sitk.ReadImage(row["psma_ct_path"]),
+            "psma_organ_segmentation_image": sitk.ReadImage(row["psma_organ_segmentation_path"]),
+            "psma_pt_image": sitk.ReadImage(row["psma_pt_path"]),
             "psma_pt_suv_threshold": row["psma_pt_suv_threshold"],
-            "psma_pred_path": row["psma_pred_path"],
-            "fdg_ct_path": row["fdg_ct_path"],
-            "fdg_organ_segmentation_path": row["fdg_organ_segmentation_path"],
-            "fdg_pt_path": row["fdg_pt_path"],
+            "fdg_ct_image": sitk.ReadImage(row["fdg_ct_path"]),
+            "fdg_organ_segmentation_image": sitk.ReadImage(row["fdg_organ_segmentation_path"]),
+            "fdg_pt_image": sitk.ReadImage(row["fdg_pt_path"]),
             "fdg_pt_suv_threshold": row["fdg_pt_suv_threshold"],
+            "psma_to_fdg_registration": row.get("psma_to_fdg_registration"),
+            # forward the path to the predictions output
+            "psma_pred_path": row["psma_pred_path"],
             "fdg_pred_path": row["fdg_pred_path"],
-            "psma_to_fdg_registration": row.get("psma_to_fdg_registration", None),
         }
-
-
-if __name__ == "__main__":
-    app()

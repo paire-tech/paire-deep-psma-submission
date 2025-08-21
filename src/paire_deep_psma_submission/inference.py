@@ -1,11 +1,8 @@
-import json
 import logging
-import os
 import subprocess
-import time
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any, Dict, List, Literal, NotRequired, Optional, Sequence, TypedDict, Union, overload
+from typing import List, Literal, NotRequired, Optional, Sequence, TypedDict, Union, overload
 
 import numpy as np
 import SimpleITK as sitk
@@ -259,8 +256,8 @@ PSMA_ENSEMBLE_CONFIG: EnsembleConfig = {
     "ttb_threshold": 0.5,
     "normal_threshold": 0.5,
     "postprocessing": {
-        "expansion_radius_mm": 7.0,
-        "ignored_organ_ids": [1, 2, 3, 5, 21, 90],
+        "expansion_radius_mm": 5.0,
+        "ignored_organ_ids": [1, 2, 3, 5, 21],
     },
 }
 
@@ -284,10 +281,10 @@ FDG_ENSEMBLE_CONFIG: EnsembleConfig = {
         #     "weight": 3.0,
         # },
         {
-            "id": "nnUNetResEncUNetL-FDG-802",  # <- Ok
+            "id": "nnUNet-FDG-802",  # <- Ok
             "tracer_name": "FDG",
             "dataset_id": 802,
-            "plan": "nnUNetResEncUNetLPlans",
+            "plan": "nnUNetPlans",
             "trainer": "nnUNetTrainer",
             "config": "3d_fullres",
             "fold": 0,
@@ -298,6 +295,22 @@ FDG_ENSEMBLE_CONFIG: EnsembleConfig = {
                 "organs": False,
             },
             "weight": 2.0,
+        },
+        {
+            "id": "nnUNet-FDG-801",  # <- Ok
+            "tracer_name": "FDG",
+            "dataset_id": 802,
+            "plan": "nnUNetPlans",
+            "trainer": "nnUNetTrainer",
+            "config": "3d_fullres",
+            "fold": 1,
+            "checkpoint": "checkpoint_final.pth",
+            "preprocessing": {
+                "pt": True,
+                "ct": True,
+                "organs": False,
+            },
+            "weight": 1.0,
         },
         # --- 902 ---
         # {
@@ -399,10 +412,10 @@ FDG_ENSEMBLE_CONFIG: EnsembleConfig = {
             "weight": 1.0,
         },
     ],
-    "ttb_threshold": 0.33,
-    "normal_threshold": 0.66,
+    "ttb_threshold": 0.25,
+    "normal_threshold": 0.75,
     "postprocessing": {
-        "expansion_radius_mm": 7.0,
+        "expansion_radius_mm": 5.0,
         "ignored_organ_ids": [1, 2, 3, 5, 21, 90],
     },
 }
@@ -574,28 +587,6 @@ def execute_lesions_segmentation(
     )
 
 
-def load_nnunet_plans(
-    dataset_id: int,
-    tracer_name: str,
-    trainer: str,
-    plan: str,
-    config: str,
-    fold: int,
-) -> Dict[str, Any]:
-    nnunet_results = os.environ["nnUNet_results"]
-    experiment_name = f"Dataset{dataset_id}_{tracer_name}_PET"
-    run_name = f"{trainer}_{plan}_{config}"
-    plans_path = Path(nnunet_results, experiment_name, run_name, f"fold_{fold}", "plans.json")
-    if not plans_path.exists():
-        raise FileNotFoundError(
-            f"Plans file not found: {plans_path}. Make sure the following nnUNet parameters are correct: "
-            f"dataset_id={dataset_id}, tracer_name={tracer_name}, trainer={trainer}, plan={plan}, config={config}, fold={fold}"
-        )
-
-    with open(plans_path, "r") as f:
-        return json.load(f)
-
-
 def nnunet_predict(
     input_dir: Union[str, Path],
     output_dir: Union[str, Path],
@@ -703,88 +694,3 @@ def expand_and_contract_ttb_in_organs(
     ttb_rethresholded_image = sitk.GetImageFromArray(ttb_rethresholded_array.astype("int16"))
     ttb_rethresholded_image.CopyInformation(ttb_image)
     return ttb_rethresholded_image
-
-
-def refine_fdg_prediction_from_psma_prediction(
-    fdg_pt_image: sitk.Image,
-    fdg_pred_image: sitk.Image,
-    fdg_totseg_image: sitk.Image,
-    psma_pred_image: sitk.Image,
-    psma_totseg_image: sitk.Image,
-) -> sitk.Image:
-    """Removes FDG lesions (from connected components) if no corresponding lesion is present
-    in PSMA for the same anatomical class (based on TotalSegmentator labels).
-    """
-    tic = time.monotonic()
-    log.info("Starting FDG refinement from PSMA prediction!")
-
-    # Ensure the organs are in the same space as the predictions
-    fdg_totseg_image = sitk.Resample(
-        fdg_totseg_image,
-        fdg_pred_image,
-        sitk.TranslationTransform(3),
-        sitk.sitkNearestNeighbor,
-        0,
-    )
-    psma_totseg_image = sitk.Resample(
-        psma_totseg_image,
-        psma_pred_image,
-        sitk.TranslationTransform(3),
-        sitk.sitkNearestNeighbor,
-        0,
-    )
-
-    fdg_pred_image = sitk.ConnectedComponent(fdg_pred_image)
-    fdg_pred_array = sitk.GetArrayFromImage(fdg_pred_image)
-    fdg_num_lesions = int(fdg_pred_array.max())
-    fdg_totseg_array = sitk.GetArrayFromImage(fdg_totseg_image)
-
-    psma_pred_array = sitk.GetArrayFromImage(psma_pred_image) > 0
-    psma_totseg_array = sitk.GetArrayFromImage(psma_totseg_image)
-    psma_totseg_labels = np.unique(psma_totseg_array[psma_pred_array])
-
-    fdg_pt_array = sitk.GetArrayFromImage(fdg_pt_image)
-
-    # Used to log some statistics about the FDG post-processing
-    stats = []
-    # Allocate memory for post-processed FDG prediction
-    fdg_out_array = np.zeros_like(fdg_pred_array, dtype=np.uint8)
-
-    for fdg_lesion_id in range(1, fdg_num_lesions + 1):
-        fdg_lesion_mask = fdg_pred_array == fdg_lesion_id
-        suvmax = fdg_pt_array[fdg_lesion_mask].max()
-        if not fdg_lesion_mask.any():
-            continue
-
-        # Get class labels from TotalSegmentator for this lesion
-        fdg_totseg_labels = np.unique(fdg_totseg_array[fdg_lesion_mask])
-
-        kept = any(label in psma_totseg_labels for label in fdg_totseg_labels if label != 0)
-        volume = np.sum(fdg_lesion_mask) * np.prod(fdg_pred_image.GetSpacing()) / 1000
-        # the idea is to remove lesions that are only in one total segmentators classes
-        # that do not match any totalsegmentator of psma
-        if kept | (volume > 4.0) | (suvmax > 10):
-            fdg_out_array[fdg_lesion_mask] = 1
-
-        stats.append(
-            {
-                "lesion_id": fdg_lesion_id,
-                "lesion_kept": kept,
-                "lesion_volume": volume,
-            }
-        )
-
-    volume_removed = sum(stat["lesion_volume"] for stat in stats if not stat["lesion_kept"])
-    num_removed_lesions = sum(1 for stat in stats if not stat["lesion_kept"])
-    log.info(
-        "FDG post-processing: %d lesions out of %d were removed (volume of %.2f mm3)",
-        num_removed_lesions,
-        fdg_num_lesions,
-        volume_removed,
-    )
-
-    fdg_out_image = sitk.GetImageFromArray(fdg_out_array.astype(np.uint8))
-    fdg_out_image.CopyInformation(fdg_pred_image)
-
-    log.info("Final postprocessing completed in %.2f seconds", time.monotonic() - tic)
-    return fdg_out_image

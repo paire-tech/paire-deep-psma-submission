@@ -25,9 +25,6 @@ This repository contains the code for our submission to the **DEEP-PSMA** (Deep-
 
 The challenge is hosted by [Grand Challenge](https://deep-psma.grand-challenge.org/). You can find more documentation and details on [how to test and deploy your container](https://grand-challenge.org/documentation/test-and-deploy-your-container/), specifically [how to add the algorithm](https://grand-challenge.org/documentation/add-the-algorithm/) and [how to link a github repository to the algorithm](https://grand-challenge.org/documentation/linking-a-github-repository-to-your-algorithm/).
 
-> [!IMPORTANT]
-> This repository is linked to the DEEP PSMA Grand Challenge submission page to automatically update the algorithm when a new version is tagged. <br> **Do not add any sensitive information to this repository.**
-
 <br>
 
 ## ⚡ Quick Access <a name="quick-links" />
@@ -580,11 +577,9 @@ For evaluation and inference purposes, we use CSV variants of the cross-validati
 You **MUST** have a copy of the original `splits_final.json` file locally. Either copy it from above, or run the `scripts/02_train.py` to generate it automatically.
 
 ```bash
-python scripts/00_evaluate.py \                       # Evaluate the performances of the model on precomputed predictions
-  --input-dir /path/to/DEEP_PSMA_CHALLENGE_DATA/ \    # Directory of the challenge data
-  --input-csv ./data/val_fold0.csv \                  # CSV containing specific cases to run inference on
-  --output-dir ./data/output/ \                       # Directory to save the predictions
-  --output-csv ./data/output/results.csv \            # CSV to save the results
+python scripts/00_export_splits.py \
+  --splits-path /path/to/splits_final.json \
+  --output-dir ./data/splits/
 ```
 
 </details>
@@ -607,7 +602,6 @@ python scripts/01a_preprocess_baseline.py           # Use the desired preprocess
   --yes                                             # Skip confirmation prompts
 ```
 
-> [!TIP]
 > Make sure to set the environment variables `nnUNet_raw`, `nnUNet_preprocessed`, and `nnUNet_results` to the appropriate directories before running the script. You can place them in a `.env` file in the root directory of the project.
 
 </details>
@@ -624,7 +618,6 @@ python scripts/train.py \     # Run nnUNet training
   --device cuda               # Device to use for training (can be `cuda`, `cpu`, or `mps`)
 ```
 
-> [!TIP]
 > Make sure to set the environment variables `nnUNet_raw`, `nnUNet_preprocessed`, and `nnUNet_results` to the appropriate directories before running the script. You can place them in a `.env` file in the root directory of the project.
 
 </details>
@@ -644,7 +637,6 @@ python scripts/03a_inference_baseline.py \            # Run inference on the bas
   --fold 0                                            # Fold to use for inference (depends on the `splits_final.json` file, usually between 0 and 4)
 ```
 
-> [!TIP]
 > Make sure to set the environment variables `nnUNet_raw`, `nnUNet_preprocessed`, and `nnUNet_results` to the appropriate directories before running the script. You can place them in a `.env` file in the root directory of the project.
 
 </details>
@@ -706,7 +698,7 @@ The docker container also supports additional arguments and options to customize
 | `DEVICE`       | The device to use for inference. Can be `auto`, `cpu` or `cuda`.                        | `cuda`    |
 
 > [!NOTE]
-> **Grand Challenge format**: This is the default format used by the DEEP PSMA Grand Challenge. <br> > **CSV format**: This format expects a CSV file with the following columns: `{psma|fdg}_pt_path`, `{psma|fdg}_ct_path`, `{psma|fdg}_organ_segmentation_path`, and `{psma|fdg}_suv_threshold`. The paths should point to the respective files relative to the input directory.
+> **Grand Challenge format**: This is the default format used by the DEEP PSMA Grand Challenge. <br> **CSV format**: This format expects a CSV file with the following columns: `{psma|fdg}_pt_path`, `{psma|fdg}_ct_path`, `{psma|fdg}_organ_segmentation_path`, and `{psma|fdg}_suv_threshold`. The paths should point to the respective files relative to the input directory.
 
 ### Evaluation
 

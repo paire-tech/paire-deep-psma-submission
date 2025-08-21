@@ -201,11 +201,6 @@ The cross-tracer refinement step, where PSMA predictions refine FDG outputs, exe
 how domain knowledge can be fused with machine learning to mirror real-world diagnostic 
 reasoning.
 
-Future work will extend this pipeline with uncertainty quantification, adaptive thresholding, 
-and prospective multi-center validation. Ultimately, we aim to provide nuclear medicine 
-physicians with a tool that is not only accurate but also interpretable, efficient, and ready for 
-integration into clinical workflows
-
 # References
 
 \printbibliography[heading=none]

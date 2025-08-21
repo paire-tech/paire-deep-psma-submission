@@ -10,11 +10,13 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 # Create a non-root user
 RUN useradd --uid 1000 appuser
 
+# Required environment variables for nnUNet
+ENV nnUNet_raw="/app/nnUNet_raw"
+ENV nnUNet_preprocessed="/app/nnUNet_preprocessed"
+ENV nnUNet_results="/app/nnUNet_results"
+
 # Remove unnecessary packages and clean cache
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
-    && uv cache clean
+RUN apt-get update && apt-get install -y tree && rm -rf /var/lib/apt/lists/*
 
 # Set app directory
 RUN mkdir -p /app && chown -R appuser:appuser /app
@@ -25,6 +27,22 @@ RUN pip list --format=columns | grep -E "(torch|cuda|nvidia)"
 
 # Copy project files
 COPY --chown=appuser:appuser .python-version pyproject.toml uv.lock README.md src/ ./
+
+# Setup directories / ckpt for nnUNet
+COPY --chown=appuser:appuser ./data/nnUNet_raw/ /app/nnUNet_raw/
+COPY --chown=appuser:appuser ./data/nnUNet_preprocessed/ /app/nnUNet_preprocessed/
+# PSMA Ensembling
+COPY --chown=appuser:appuser ./data/nnUNet_results/Dataset801_PSMA_PET/ /app/nnUNet_results/Dataset801_PSMA_PET/
+# COPY --chown=appuser:appuser ./data/nnUNet_results/Dataset901_PSMA_PET/ /app/nnUNet_results/Dataset901_PSMA_PET/
+COPY --chown=appuser:appuser ./data/nnUNet_results/Dataset911_PSMA_PET/ /app/nnUNet_results/Dataset911_PSMA_PET/
+COPY --chown=appuser:appuser ./data/nnUNet_results/Dataset921_PSMA_PET/ /app/nnUNet_results/Dataset921_PSMA_PET/
+# FDG Ensembling
+COPY --chown=appuser:appuser ./data/nnUNet_results/Dataset802_FDG_PET/ /app/nnUNet_results/Dataset802_FDG_PET/
+# COPY --chown=appuser:appuser ./data/nnUNet_results/Dataset902_FDG_PET/ /app/nnUNet_results/Dataset902_FDG_PET/
+COPY --chown=appuser:appuser ./data/nnUNet_results/Dataset912_FDG_PET/ /app/nnUNet_results/Dataset912_FDG_PET/
+COPY --chown=appuser:appuser ./data/nnUNet_results/Dataset922_FDG_PET/ /app/nnUNet_results/Dataset922_FDG_PET/
+
+RUN tree /app/nnUNet_results -L 2 --sort name
 
 # Export requirements, using uv
 RUN if [ "$BUILD_MODE" = "dev" ]; then \

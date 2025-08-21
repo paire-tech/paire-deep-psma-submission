@@ -3,11 +3,9 @@ from itertools import chain
 from pathlib import Path
 from typing import Any, Sequence, Union
 
-from monai.utils.misc import ensure_tuple
-
 
 def find_file_path(dir_path: Union[str, Path], ext: Union[str, Sequence[str]] = "*") -> Path:
-    exts = ensure_tuple(ext)
+    exts = ext if isinstance(ext, (list, tuple)) else [ext]
     iterator = chain(*[Path(dir_path).glob(f"*{ext}") for ext in exts])
     file_paths = list(iterator)
 

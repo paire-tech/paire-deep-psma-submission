@@ -9,10 +9,11 @@ description = "Submission for the DEEP PSMA Grand Challenge"
 readme = "README.md"
 requires-python = ">=3.11, <3.13"
 dependencies = [
-    "monai>=1.5.0",
+    "nnunetv2>=2.6.2",
     "pandas>=2.3.1",
     "pydantic>=2.11.7",
     "pydantic-settings>=2.10.1",
+    "python-dotenv>=1.1.1",
     "simpleitk>=2.5.2",
     "torch==2.6.0", # Fix to use CUDA 12.4 in docker container
     "typer>=0.16.0",

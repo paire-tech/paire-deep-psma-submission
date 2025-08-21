@@ -1,90 +1,57 @@
 # Mostly copied from:
 # https://github.com/Peter-MacCallum-Cancer-Centre/DEEP-PSMA/blob/main/evaluation.py
 
-import logging
+import os
+from argparse import ArgumentParser, Namespace
 from functools import partial
 from pathlib import Path
+from typing import Union
 
-import cc3d
 import numpy as np
 import pandas as pd
 import scipy.ndimage
 import SimpleITK as sitk
+from dotenv import load_dotenv
 from rich import print
 from rich.progress import track
 from rich.table import Table
-from typer import Option, Typer
 
-from paire_deep_psma_submission.config import settings
+load_dotenv(override=True)
 
-log = logging.getLogger(__name__)
-
-
-app = Typer(
-    help="Evaluate segmentation results against ground truth labels.",
-    pretty_exceptions_enable=False,
-)
+# Default configuration
+INPUT_DIR = os.getenv("INPUT_DIR", "input")
+OUTPUT_DIR = os.getenv("OUTPUT_DIR", "output")
 
 
-@app.command()
-def main(
-    input_dir: Path = Option(
-        settings.INPUT_DIR,
-        "--input-dir",
-        "-i",
-        help="Directory containing the ground truth labels.",
-        exists=True,
-        dir_okay=True,
-        readable=True,
-    ),
-    output_dir: Path = Option(
-        settings.OUTPUT_DIR,
-        "--output-dir",
-        "-o",
-        help="Directory containing the predicted segmentation results.",
-        exists=True,
-        dir_okay=True,
-        readable=True,
-    ),
-    input_csv: Path = Option(
-        None,
-        "--input-csv",
-        "-ic",
-        help="Path of the CSV format.",
-    ),
-    output_csv: Path = Option(
-        None,
-        "--output-csv",
-        "-oc",
-        help="Path of the output CSV file.",
-    ),
-) -> None:
-    input_csv = Path(input_csv or next(Path(input_dir).glob("*.csv")))
-    output_csv = Path(output_csv or (output_dir / "results.csv"))
+def main() -> None:
+    args = parse_args()
+
+    input_csv = Path(args.input_csv)
+    output_csv = Path(args.output_csv)
 
     df = pd.read_csv(input_csv)
-    log.info("Loaded %s entries from '%s'", len(df), input_csv)
+    print(f"Loaded {len(df)} entries from {input_csv}")
 
     # Resolve inputs / outputs paths
-    df["psma_pt_ttb_path"] = df["psma_pt_ttb_path"].apply(lambda path: input_dir / path if path else None)
-    df["fdg_pt_ttb_path"] = df["fdg_pt_ttb_path"].apply(lambda path: input_dir / path if path else None)
-    df["psma_pred_path"] = df["psma_pred_path"].apply(lambda path: output_dir / path if path else None)
-    df["fdg_pred_path"] = df["fdg_pred_path"].apply(lambda path: output_dir / path if path else None)
+    df["psma_pt_ttb_path"] = df["psma_pt_ttb_path"].apply(lambda path: Path(args.input_dir, path) if path else None)
+    df["fdg_pt_ttb_path"] = df["fdg_pt_ttb_path"].apply(lambda path: Path(args.input_dir, path) if path else None)
+    df["psma_pred_path"] = df["psma_pred_path"].apply(lambda path: Path(args.output_dir, path) if path else None)
+    df["fdg_pred_path"] = df["fdg_pred_path"].apply(lambda path: Path(args.output_dir, path) if path else None)
 
     results = []
     for _, row in track(df.iterrows(), total=len(df), description="Evaluating..."):
-        psma_gt_path = row["psma_pt_ttb_path"]
-        psma_pred_path = row["psma_pred_path"]
-        fdg_gt_path = row["fdg_pt_ttb_path"]
-        fdg_pred_path = row["fdg_pred_path"]
+        psma_gt_path = Path(row["psma_pt_ttb_path"]).resolve()
+        psma_pred_path = Path(row["psma_pred_path"]).resolve()
+        fdg_gt_path = Path(row["fdg_pt_ttb_path"]).resolve()
+        fdg_pred_path = Path(row["fdg_pred_path"]).resolve()
 
-        log.info("[PSMA] Evaluating '%s' and '%s'", psma_gt_path, psma_pred_path)
+        print(f"[PSMA] Evaluating {psma_gt_path} and {psma_pred_path}")
         psma_scores = compute_scores(psma_gt_path, psma_pred_path) if (psma_gt_path and psma_pred_path) else {}
-        log.info("[PSMA] Scores: \t %s", " | ".join(f"{k}: {v:.4f}" for k, v in psma_scores.items()))
+        print(f"       Scores: \t {' | '.join(f'{k}: {v:.4f}' for k, v in psma_scores.items())}")
 
-        log.info("[FDG ] Evaluating '%s' and '%s'", fdg_gt_path, fdg_pred_path)
+        print(f"[FDG ] Evaluating {fdg_gt_path} and {fdg_pred_path}")
         fdg_scores = compute_scores(fdg_gt_path, fdg_pred_path) if (fdg_gt_path and fdg_pred_path) else {}
-        log.info("[FDG ] Scores: \t %s", " | ".join(f"{k}: {v:.4f}" for k, v in fdg_scores.items()))
+        print(f"       Scores: \t {' | '.join(f'{k}: {v:.4f}' for k, v in fdg_scores.items())}")
 
         result = {
             **{f"psma_{k}": v for k, v in psma_scores.items()},
@@ -107,12 +74,44 @@ def main(
     print(table)
 
 
-def label_array(mask: np.ndarray) -> np.ndarray:
-    return cc3d.connected_components(mask > 0, connectivity=18)
+def parse_args() -> Namespace:
+    parser = ArgumentParser(description="Evaluate segmentation results against ground truth labels.")
+    parser.add_argument(
+        "-i",
+        "--input-dir",
+        type=str,
+        default=INPUT_DIR,
+        help="Directory containing the ground truth labels.",
+    )
+    parser.add_argument(
+        "-o",
+        "--output-dir",
+        type=str,
+        default=OUTPUT_DIR,
+        help="Directory containing the predicted segmentation results.",
+    )
+    parser.add_argument(
+        "--input-csv",
+        type=str,
+        required=True,
+        help="Path of the CSV format.",
+    )
+    parser.add_argument(
+        "--output-csv",
+        type=str,
+        required=True,
+        help="Path of the output CSV file.",
+    )
+    return parser.parse_args()
+
+
+def label_mask(mask: np.ndarray) -> np.ndarray:
+    structure = scipy.ndimage.generate_binary_structure(3, 2)
+    return scipy.ndimage.label(mask > 0, structure=structure)
 
 
 def fp_volume_score(gt_array: np.ndarray, pred_array: np.ndarray) -> float:
-    pred_label, num_labels = scipy.ndimage.label(pred_array)
+    pred_label, num_labels = label_mask(pred_array)
     gt_array = gt_array > 0  # Ensure target is binary
 
     if num_labels == 0:
@@ -127,7 +126,7 @@ def fp_volume_score(gt_array: np.ndarray, pred_array: np.ndarray) -> float:
 
 
 def fn_volume_score(gt_array: np.ndarray, pred_array: np.ndarray) -> float:
-    target_label, num_labels = scipy.ndimage.label(gt_array)
+    target_label, num_labels = label_mask(gt_array)
     pred_array = pred_array > 0  # Ensure pred is binary
 
     if num_labels == 0:
@@ -164,16 +163,16 @@ def surface_dice_score(gt_image: sitk.Image, pred_image: sitk.Image) -> float:
     return surface_dice
 
 
-def read_label(label_path: str) -> tuple[np.ndarray, float]:
+def read_label(label_path: Union[str, Path]) -> tuple[np.ndarray, float]:
     label = sitk.ReadImage(label_path)
     ar = sitk.GetArrayFromImage(label)
     voxel_volume = np.prod(np.array(label.GetSpacing())) / 1000.0
     return ar, voxel_volume
 
 
-def compute_scores(gt_path: str, pred_path: str) -> dict[str, float]:
+def compute_scores(gt_path: Union[str, Path], pred_path: Union[str, Path]) -> dict[str, float]:
     gt_ar, voxel_volume = read_label(gt_path)
-    pred_ar, voxel_volume = read_label(pred_path)  # could input check for matching resolution...
+    pred_ar, _ = read_label(pred_path)
     dice = dice_score(gt_ar, pred_ar)
     fp_volume = fp_volume_score(gt_ar, pred_ar) * voxel_volume
     fn_volume = fn_volume_score(gt_ar, pred_ar) * voxel_volume
@@ -188,4 +187,4 @@ def compute_scores(gt_path: str, pred_path: str) -> dict[str, float]:
 
 
 if __name__ == "__main__":
-    app()
+    main()

@@ -1,9 +1,9 @@
 import json
 import logging
+import math
 import os
 import subprocess
 import time
-import math
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, Dict, List, Literal, NotRequired, Optional, Sequence, TypedDict, Union, overload
@@ -722,18 +722,22 @@ def expand_and_contract_ttb_in_organs(
     return ttb_rethresholded_image
 
 
-def predict_proba_once(x, means, stds, coef, intercept):
+def predict_proba_once(
+    x: Sequence[float],
+    means: Sequence[float],
+    stds: Sequence[float],
+    coef: Sequence[float],
+    intercept: float,
+) -> float:
     # x = [kept(0/1), suvmax, volume]
     xn = [(xi - m) / s for xi, m, s in zip(x, means, stds)]
     z = intercept + sum(c * xi for c, xi in zip(coef, xn))
     return 1.0 / (1.0 + math.exp(-z))
 
 
-# Example with your frozen params
-# params = {...}  # from training step
-def predict_label(x, params, threshold=0.5):
+def predict_label(x: Sequence[float], params: Dict[str, Any], threshold: float = 0.5) -> bool:
     p = predict_proba_once(x, params["means"], params["stds"], params["coef"], params["intercept"])
-    return int(p >= threshold)
+    return p >= threshold
 
 
 def refine_fdg_prediction_from_psma_prediction(
@@ -811,8 +815,10 @@ def refine_fdg_prediction_from_psma_prediction(
                     params,
                     threshold=0.5,
                 )
+
         if is_predicted_true_positive | (volume > 7.0):
             fdg_out_array[fdg_lesion_mask] = 1
+
         stats.append(
             {
                 "lesion_id": fdg_lesion_id,

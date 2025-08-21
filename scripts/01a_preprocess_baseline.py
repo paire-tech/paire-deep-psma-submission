@@ -12,14 +12,10 @@ from tqdm import tqdm
 
 load_dotenv(override=True)
 
-# Data directory containing the challenge data
-DATA_DIR = "/data/DEEP_PSMA_CHALLENGE_DATA/CHALLENGE_DATA"
 # nnUNet configuration paths
 NNUNET_RAW_DIR = os.environ["nnUNet_raw"]
 NNUNET_PREPROCESSED_DIR = os.environ["nnUNet_preprocessed"]
 NNUNET_RESULTS_DIR = os.environ["nnUNet_results"]
-# Expected number of cases in the dataset
-EXPECTED_NUM_CASES = 100
 
 
 def main() -> None:
@@ -33,10 +29,7 @@ def main() -> None:
 
     dataset_files = scan_dataset_files(args.data_dir, args.tracer_name)
     dataset_name = f"Dataset{args.dataset_id}_{args.tracer_name}_PET"
-
     print(f"Found {len(dataset_files):,} cases for dataset {dataset_name!r}.")
-    if len(dataset_files) != EXPECTED_NUM_CASES:
-        print(f"WARNING! Expected {EXPECTED_NUM_CASES:,} cases, but found {len(dataset_files):,}.")
 
     print(f"Will preprocess {len(dataset_files)} in {NNUNET_RAW_DIR} directory.")
     if not args.yes:
@@ -113,7 +106,7 @@ def parse_args() -> Namespace:
     parser.add_argument(
         "--data-dir",
         type=str,
-        default=DATA_DIR,
+        required=True,
         help="Path to the directory containing the DeepPSMA dataset.",
     )
     parser.add_argument(

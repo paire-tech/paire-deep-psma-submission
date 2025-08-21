@@ -698,12 +698,12 @@ make run
 
 The docker container also supports additional arguments and options to customize the inference process. You can specify them through environment variables (create a `.env` file in the root directory):
 
-| Argument          | Description                                                                             | Default          |
-| ----------------- | --------------------------------------------------------------------------------------- | ---------------- |
-| `INPUT_FORMAT`    | The format of the input data. Can be `gc` (Grand Challenge format) or `csv` (CSV file). | `gc`             |
-| `INPUT_DIR`       | The directory containing the input data.                                                | `/input`         |
-| `OUTPUT_DIR`      | The directory where the output data will be saved.                                      | `/output`        |
-| `DEVICE`          | The device to use for inference. Can be `auto`, `cpu` or `cuda`.                        | `cuda`           |
+| Argument       | Description                                                                             | Default   |
+| -------------- | --------------------------------------------------------------------------------------- | --------- |
+| `INPUT_FORMAT` | The format of the input data. Can be `gc` (Grand Challenge format) or `csv` (CSV file). | `gc`      |
+| `INPUT_DIR`    | The directory containing the input data.                                                | `/input`  |
+| `OUTPUT_DIR`   | The directory where the output data will be saved.                                      | `/output` |
+| `DEVICE`       | The device to use for inference. Can be `auto`, `cpu` or `cuda`.                        | `cuda`    |
 
 > [!NOTE]
 > **Grand Challenge format**: This is the default format used by the DEEP PSMA Grand Challenge. <br> > **CSV format**: This format expects a CSV file with the following columns: `{psma|fdg}_pt_path`, `{psma|fdg}_ct_path`, `{psma|fdg}_organ_segmentation_path`, and `{psma|fdg}_suv_threshold`. The paths should point to the respective files relative to the input directory.
@@ -765,12 +765,12 @@ paire-deep-psma-submission --help
 
 The available options are:
 
-| Option              | Description                                                                             | Default          |
-| ------------------- | --------------------------------------------------------------------------------------- | ---------------- |
-| `--input-format`    | The format of the input data. Can be `gc` (Grand Challenge format) or `csv` (CSV file). | `gc`             |
-| `--input-dir`       | The directory containing the input data.                                                | `/input`         |
-| `--output-dir`      | The directory where the output data will be saved.                                      | `/output`        |
-| `--device`          | The device to use for inference. Can be `auto`, `cpu` or `cuda`.                        | `cuda`           |
+| Option           | Description                                                                             | Default   |
+| ---------------- | --------------------------------------------------------------------------------------- | --------- |
+| `--input-format` | The format of the input data. Can be `gc` (Grand Challenge format) or `csv` (CSV file). | `gc`      |
+| `--input-dir`    | The directory containing the input data.                                                | `/input`  |
+| `--output-dir`   | The directory where the output data will be saved.                                      | `/output` |
+| `--device`       | The device to use for inference. Can be `auto`, `cpu` or `cuda`.                        | `cuda`    |
 
 > [!NOTE]
 > These options can also be set through environment variables.
@@ -807,9 +807,10 @@ We used `make` to define common commands for building, testing, and running the 
 ## ❓ FAQ <a name="faq" />
 
 <details>
-<summary><b>How to configure VSCode?</b></summary>
+<summary><b>How to configure my VSCode project?</b></summary>
 
-Add the following at the root of the repo, in `.vscode/settings.json`
+If you are using VSCode and want to configure your IDE to use our recommended settings,
+copy-paste the below in your `.vscode/settings.json` file.
 
 ```json
 {
@@ -850,4 +851,36 @@ Add the following at the root of the repo, in `.vscode/settings.json`
 ```
 
 </details>
-````
+
+<details>
+<summary><b>How to setup Latex and R Markdown?</b></summary>
+
+We used Latex and R Markdown to write the report for the DEEP PSMA Grand Challenge.
+
+1. Download R, R Studio
+2. Download Pandoc
+3. Download TextLive (full)
+
+For example on Ubuntu, you can install the following packages:
+
+```bash
+# Install Latex
+sudo apt-get update
+sudo apt-get install texlive-full  # install latex and its packages
+latex --version
+# pdfTeX 3.141592653-2.6-1.40.22 (TeX Live 2022/dev/Debian)
+
+# To setup R Markdown:
+sudo apt-get update
+sudo apt install r-base r-base-dev
+R --version
+# 4.1.2
+
+# Install Pandoc
+sudo apt-get install pandoc  # install pandoc for markdown conversion
+# or: conda install -c conda-forge pandoc
+pandoc --version
+# 2.9.2.1
+```
+
+</details>

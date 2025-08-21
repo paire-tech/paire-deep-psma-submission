@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "paire-deep-psma-submission"
-version = "0.1.0"
+version = "0.1.1"
 description = "Submission for the DEEP PSMA Grand Challenge"
 readme = "README.md"
 requires-python = ">=3.11, <3.13"
@@ -15,6 +15,7 @@ dependencies = [
     "pydantic-settings>=2.10.1",
     "python-dotenv>=1.1.1",
     "simpleitk>=2.5.2",
+    "scikit-learn>=1.7.1",
     "torch==2.6.0", # Fix to use CUDA 12.4 in docker container
     "typer>=0.16.0",
 ]
